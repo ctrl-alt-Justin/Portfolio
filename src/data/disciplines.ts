@@ -46,8 +46,8 @@ export const DISCIPLINES: Discipline[] = [
       "PostgreSQL",
       "Tailwind CSS",
     ],
-    previewMedia: "/media/quotation-1.png",
-    previewLabel: "COMMERCIAL SUITE // 01",
+    previewMedia: "/featured/E-Commerce%201.png",
+    previewLabel: "COMMERCIAL SYSTEMS // 01",
     previewGradient:
       "radial-gradient(85% 75% at 20% 20%, rgba(148, 163, 184, 0.16) 0%, rgba(24, 24, 27, 0.92) 55%, rgba(10, 10, 12, 1) 100%)",
     builds: [
@@ -73,7 +73,7 @@ export const DISCIPLINES: Discipline[] = [
           "Tailwind CSS",
         ],
         liveUrl: "https://lgzquotations.vercel.app/",
-        media: ["/media/quotation-1.png", "/media/quotation-2.png"],
+        media: ["/featured/quotation-1.png"],
         mediaGradient:
           "radial-gradient(75% 80% at 78% 18%, rgba(228, 228, 231, 0.14) 0%, rgba(24, 24, 27, 0.92) 52%, rgba(9, 9, 11, 1) 100%)",
       },
@@ -100,11 +100,9 @@ export const DISCIPLINES: Discipline[] = [
         ],
         liveUrl: "https://etjoaigitrading.vercel.app/shop",
         media: [
-          "/featured/E-Commerce 1.png",
+          "/featured/E-Commerce%201.png",
           "/featured/E-Commerce2.png",
           "/featured/BackOffice.png",
-          "/media/ecommerce-crm-1.png",
-          "/media/ecommerce-crm-2.png",
         ],
         mediaGradient:
           "radial-gradient(80% 70% at 18% 82%, rgba(161, 161, 170, 0.14) 0%, rgba(20, 20, 24, 0.94) 56%, rgba(9, 9, 11, 1) 100%)",
@@ -126,8 +124,8 @@ export const DISCIPLINES: Discipline[] = [
       "Vector Search",
       "TypeScript",
     ],
-    previewMedia: "/media/risse-1.png",
-    previewLabel: "RISSE AI // 02",
+    previewMedia: "/featured/RisseAILMS.png",
+    previewLabel: "RISSE AI LMS // 02",
     previewGradient:
       "radial-gradient(85% 75% at 75% 25%, rgba(129, 140, 248, 0.16) 0%, rgba(20, 20, 26, 0.92) 55%, rgba(10, 10, 12, 1) 100%)",
     builds: [
@@ -153,7 +151,7 @@ export const DISCIPLINES: Discipline[] = [
           "TypeScript",
         ],
         privateBadge: "Private System — Media Preview",
-        media: ["/featured/RisseAILMS.png", "/media/risse-1.png", "/media/risse-2.png"],
+        media: ["/featured/RisseAILMS.png"],
         mediaGradient:
           "radial-gradient(80% 75% at 30% 25%, rgba(129, 140, 248, 0.16) 0%, rgba(18, 18, 24, 0.93) 56%, rgba(9, 9, 11, 1) 100%)",
       },
@@ -178,7 +176,7 @@ export const DISCIPLINES: Discipline[] = [
       "Bambu Lab P1S",
       "VEX V5",
     ],
-    previewMedia: "/media/securelink-pin.png",
+    previewMedia: "/featured/Drivetrain.png",
     previewLabel: "HARDWARE & CAD // 03",
     previewGradient:
       "radial-gradient(85% 75% at 22% 75%, rgba(245, 158, 11, 0.13) 0%, rgba(22, 20, 20, 0.93) 56%, rgba(10, 10, 12, 1) 100%)",
@@ -204,7 +202,7 @@ export const DISCIPLINES: Discipline[] = [
           "FastAPI",
           "Bambu Lab P1S",
         ],
-        media: ["/media/securelink-pin.png", "/media/securelink-dashboard.png"],
+        media: ["/featured/securelink-1.png"],
         mediaGradient:
           "radial-gradient(75% 75% at 72% 24%, rgba(245, 158, 11, 0.13) 0%, rgba(22, 20, 20, 0.94) 55%, rgba(9, 9, 11, 1) 100%)",
       },
@@ -229,7 +227,7 @@ export const DISCIPLINES: Discipline[] = [
           "Bambu Lab P1S",
           "VEX V5",
         ],
-        media: ["/featured/Drivetrain.png", "/media/drivetrain-cad-1.png", "/media/drivetrain-build-2.png"],
+        media: ["/featured/Drivetrain.png"],
         mediaGradient:
           "radial-gradient(80% 70% at 24% 25%, rgba(251, 191, 36, 0.11) 0%, rgba(20, 20, 22, 0.94) 56%, rgba(9, 9, 11, 1) 100%)",
       },
@@ -249,7 +247,7 @@ export const DISCIPLINES: Discipline[] = [
       "CAD-to-3D Pipeline",
       "Lighting & Shading",
     ],
-    previewMedia: "/media/ue5-environment-1.png",
+    previewMedia: "/featured/ue5-environment.png",
     previewLabel: "3D & MOTION // 04",
     previewGradient:
       "radial-gradient(85% 75% at 50% 15%, rgba(244, 244, 246, 0.15) 0%, rgba(20, 20, 24, 0.92) 52%, rgba(9, 9, 11, 1) 100%)",
@@ -268,7 +266,7 @@ export const DISCIPLINES: Discipline[] = [
           "Real-time post-processing color grading and exposure pipelines delivering cinema-grade framing in Unreal Engine 5.",
         ],
         stack: ["Unreal Engine 5", "CAD-to-3D Pipeline", "Lighting & Shading"],
-        media: ["/media/ue5-environment-1.png"],
+        media: ["/featured/ue5-environment.png"],
         mediaGradient:
           "radial-gradient(75% 75% at 75% 20%, rgba(244, 244, 246, 0.14) 0%, rgba(18, 18, 22, 0.93) 54%, rgba(9, 9, 11, 1) 100%)",
       },
@@ -286,7 +284,7 @@ export const DISCIPLINES: Discipline[] = [
           "Warm volumetric lighting and soft bounce illumination path-traced in Blender Cycles for editorial depth.",
         ],
         stack: ["Blender", "Cycles/Eevee", "Lighting & Shading"],
-        media: ["/media/blender-isometric-room.png"],
+        media: ["/featured/blender-isometric.png"],
         mediaGradient:
           "radial-gradient(80% 75% at 25% 75%, rgba(212, 212, 216, 0.13) 0%, rgba(18, 18, 22, 0.94) 55%, rgba(9, 9, 11, 1) 100%)",
       },

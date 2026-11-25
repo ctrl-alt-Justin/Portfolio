@@ -85,25 +85,9 @@ body:has(.portfolio-shell[data-portfolio-view="profile"]) {
   overflow-x: clip;
 }
 
-.portfolio-frame,
-.portfolio-shell .portfolio-brand-docked {
+.portfolio-frame {
   width: var(--portfolio-frame-width);
   margin-inline: auto;
-}
-
-.portfolio-shell .portfolio-brand-docked,
-.portfolio-scene-nav .portfolio-frame {
-  height: var(--portfolio-masthead-height);
-}
-
-.portfolio-shell[data-portfolio-view="profile"] .portfolio-brand-docked {
-  position: absolute;
-  justify-content: flex-start;
-  width: calc(100% - 2 * var(--portfolio-gutter));
-}
-
-.portfolio-shell[data-portfolio-view="profile"] .portfolio-brand-docked button {
-  pointer-events: none;
 }
 
 .portfolio-grid {
@@ -117,6 +101,7 @@ body:has(.portfolio-shell[data-portfolio-view="profile"]) {
   width: 100%;
   min-height: 92svh;
   flex-direction: column;
+  padding-top: 5.5rem;
   padding-inline: var(--portfolio-gutter);
 }
 
@@ -137,7 +122,8 @@ body:has(.portfolio-shell[data-portfolio-view="profile"]) {
 
 .portfolio-masthead {
   position: relative;
-  min-height: var(--portfolio-masthead-height);
+  min-height: 2.75rem;
+  padding-bottom: 0.75rem;
   align-items: center;
 }
 
@@ -150,8 +136,8 @@ body:has(.portfolio-shell[data-portfolio-view="profile"]) {
 }
 
 .portfolio-location {
-  grid-column: 7 / -1;
-  justify-self: end;
+  grid-column: 1 / 7;
+  justify-self: start;
 }
 
 .portfolio-annotation {
@@ -330,12 +316,18 @@ body:has(.portfolio-shell[data-portfolio-view="profile"]) {
   color: #f4f4f6;
 }
 
+#about,
+#work {
+  scroll-margin-top: 5.5rem;
+}
+
 .portfolio-chapter {
   display: grid;
   min-height: 60svh;
   align-content: center;
   border-top: 1px solid rgb(255 255 255 / 16%);
   padding-block: clamp(2.5rem, 7vh, 5rem);
+  scroll-margin-top: 5.5rem;
 }
 
 .portfolio-chapter h3 {
@@ -692,13 +684,14 @@ body:has(.portfolio-shell[data-portfolio-view="profile"]) {
   }
 
   .portfolio-location {
-    grid-column: 3 / -1;
+    grid-column: 1 / 3;
+    justify-self: start;
   }
 
   .portfolio-location .portfolio-annotation {
     flex-direction: column;
     gap: 0;
-    text-align: right;
+    text-align: left;
   }
 
   .portfolio-hero-body {
@@ -732,7 +725,7 @@ body:has(.portfolio-shell[data-portfolio-view="profile"]) {
 
   .portfolio-chapter {
     min-height: auto;
-    scroll-margin-top: 1rem;
+    scroll-margin-top: 5.5rem;
   }
 
   .portfolio-utility-settings,

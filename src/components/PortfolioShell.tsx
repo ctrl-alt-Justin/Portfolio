@@ -1,11 +1,7 @@
 "use client";
 
 import Lenis from "lenis";
-import {
-  ArrowLeft,
-  ArrowUpRight,
-  RotateCcw,
-} from "lucide-react";
+import { ArrowUpRight, RotateCcw } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -16,9 +12,9 @@ import {
 } from "react";
 import { AboutSequence } from "@/components/AboutSequence";
 import { CinemaLightbox } from "@/components/CinemaLightbox";
-import { DisciplineCard } from "@/components/DisciplineCard";
 import { GraphiteBackdrop, type GraphiteBackdropHandle } from "@/components/GraphiteBackdrop";
-import { WorkShowcase } from "@/components/WorkShowcase";
+import { MediaSurface } from "@/components/MediaSurface";
+import { DetailStream, WorkShowcase } from "@/components/WorkShowcase";
 import {
   DISCIPLINES,
   getDisciplineBySlug,
@@ -36,14 +32,20 @@ function getProfileAnchor() {
 }
 
 const UNDOCKED_WRAPPER_CLASS =
-  "fixed inset-0 z-40 pointer-events-none flex items-center justify-center px-6";
+  "fixed inset-0 z-50 pointer-events-none flex items-center justify-center px-6";
 const DOCKED_WRAPPER_CLASS =
-  "portfolio-brand-docked absolute inset-x-0 top-0 z-40 pointer-events-none flex w-full items-center justify-end";
+  "portfolio-brand-docked fixed top-0 inset-x-0 z-50 h-16 px-6 md:px-12 pointer-events-none flex items-center justify-end";
 
 const UNDOCKED_BRAND_CLASS =
   "text-[clamp(2.25rem,5vw,4.75rem)] font-medium tracking-[-0.04em] text-[#F4F4F6] whitespace-nowrap leading-none";
 const DOCKED_BRAND_CLASS =
-  "text-sm sm:text-base md:text-lg font-medium tracking-[-0.02em] text-[#F4F4F6] whitespace-nowrap leading-none transition-colors duration-200 hover:text-white focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-white/60";
+  "text-xs sm:text-sm md:text-base font-medium tracking-[-0.02em] text-[#F4F4F6] whitespace-nowrap leading-none transition-colors duration-200 hover:text-white focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-white/60";
+
+const NAV_ITEMS = [
+  { id: "profile", label: "PROFILE" },
+  { id: "work", label: "SELECTED WORKS" },
+  { id: "disciplines", label: "DISCIPLINES" },
+] as const;
 
 type ViewState = "profile" | "disciplines" | "detail";
 
@@ -57,9 +59,14 @@ type PendingScene =
   | "direct-detail"
   | null;
 
-export function PortfolioShell({ availableMedia }: { availableMedia: string[] }) {
+export function PortfolioShell({ availableMedia: _availableMedia }: { availableMedia?: string[] }) {
+  void _availableMedia;
   const [view, setView] = useState<ViewState>("profile");
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
+  const [hoveredDisciplineSlug, setHoveredDisciplineSlug] = useState<string>(
+    DISCIPLINES[0].slug
+  );
+  const [activeProfileSection, setActiveProfileSection] = useState<"profile" | "work">("profile");
   const [introSettled, setIntroSettled] = useState(false);
   const [lightboxState, setLightboxState] = useState<{
     build: ProjectBuild;
@@ -82,7 +89,8 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
 
   // Stage 2: Full-width 4-Discipline Index refs
   const disciplinesStageRef = useRef<HTMLElement>(null);
-  const backToProfileRef = useRef<HTMLButtonElement>(null);
+  const topNavBarRef = useRef<HTMLElement>(null);
+  const pendingProfileTargetRef = useRef<"#work" | null>(null);
   const eyebrowRef = useRef<HTMLDivElement>(null);
   const eyebrowBorderRef = useRef<HTMLSpanElement>(null);
   const metaRef = useRef<HTMLDivElement>(null);
@@ -93,12 +101,14 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
   const rowHeaderRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const rowMetaRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const rowBorderRefs = useRef<Record<string, HTMLSpanElement | null>>({});
+  const previewCardRef = useRef<HTMLDivElement>(null);
+  const quickXToRef = useRef<gsap.QuickToFunc | null>(null);
+  const quickYToRef = useRef<gsap.QuickToFunc | null>(null);
+  const isPreviewVisibleRef = useRef(false);
 
   // Stage 3: Option 1 Detail refs
   const dockedHeaderRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
-  const drawerLeftRef = useRef<HTMLDivElement>(null);
-  const drawerRightRef = useRef<HTMLDivElement>(null);
 
   const lenisRef = useRef<Lenis | null>(null);
   const reducedMotionRef = useRef(false);
@@ -188,6 +198,68 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
     }
   }, []);
 
+  const hideCursorPreview = useCallback((immediate = false) => {
+    isPreviewVisibleRef.current = false;
+    const card = previewCardRef.current;
+    if (!card) return;
+    gsap.killTweensOf(card, "opacity,scale");
+    if (immediate || reducedMotionRef.current) {
+      gsap.set(card, { opacity: 0, scale: 0.96 });
+    } else {
+      gsap.to(card, {
+        opacity: 0,
+        scale: 0.96,
+        duration: 0.2,
+        ease: "power2.out",
+      });
+    }
+  }, []);
+
+  const updateCursorPreviewPos = useCallback(
+    (clientX: number, clientY: number, snap = false) => {
+      const card = previewCardRef.current;
+      if (!card || reducedMotionRef.current) return;
+      const cardW = 280;
+      const cardH = 175;
+      const pad = 20;
+      const targetX = Math.max(
+        pad,
+        Math.min(clientX + 24, window.innerWidth - cardW - pad)
+      );
+      const targetY = Math.max(
+        pad,
+        Math.min(clientY - cardH / 2, window.innerHeight - cardH - pad)
+      );
+      if (snap || !isPreviewVisibleRef.current) {
+        gsap.set(card, { x: targetX, y: targetY });
+      } else {
+        quickXToRef.current?.(targetX);
+        quickYToRef.current?.(targetY);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (view !== "disciplines" || reducedMotionRef.current) return;
+    const card = previewCardRef.current;
+    if (!card) return;
+
+    quickXToRef.current = gsap.quickTo(card, "x", {
+      duration: 0.3,
+      ease: "power3.out",
+    });
+    quickYToRef.current = gsap.quickTo(card, "y", {
+      duration: 0.3,
+      ease: "power3.out",
+    });
+
+    return () => {
+      quickXToRef.current = null;
+      quickYToRef.current = null;
+    };
+  }, [view]);
+
   const revealProfileImmediate = useCallback(() => {
     applyDockedBrandInstant();
     graphiteRef.current?.settle(false);
@@ -201,7 +273,7 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
     if (profileDividerRef.current) {
       gsap.set(profileDividerRef.current, { scaleX: 1, opacity: 1, y: 0 });
     }
-    gsap.set(bottomBarRef.current, {
+    gsap.set([topNavBarRef.current, bottomBarRef.current], {
       opacity: 1,
       y: 0,
     });
@@ -291,7 +363,7 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
     if (profileDividerRef.current) {
       gsap.set(profileDividerRef.current, { scaleX: 0, opacity: 1, y: 0 });
     }
-    gsap.set(bottomBarRef.current, {
+    gsap.set([topNavBarRef.current, bottomBarRef.current], {
       opacity: 0,
       y: 0,
     });
@@ -409,7 +481,7 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
       );
     }
     masterTl.to(
-      bottomBarRef.current,
+      [topNavBarRef.current, bottomBarRef.current],
       {
         opacity: 1,
         duration: 0.55,
@@ -475,7 +547,7 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
           );
         }
         applyDockedBrandInstant();
-        gsap.set(bottomBarRef.current, { opacity: 1 });
+        gsap.set([topNavBarRef.current, bottomBarRef.current], { opacity: 1 });
         try {
           sessionStorage.setItem(INTRO_SESSION_KEY, "1");
         } catch {
@@ -491,7 +563,7 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
 
       if (urlView === "disciplines") {
         applyDockedBrandInstant();
-        gsap.set(bottomBarRef.current, { opacity: 1 });
+        gsap.set([topNavBarRef.current, bottomBarRef.current], { opacity: 1 });
         try {
           sessionStorage.setItem(INTRO_SESSION_KEY, "1");
         } catch {
@@ -527,6 +599,28 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
     startIntroChoreography,
   ]);
 
+  // Track active section in Profile view for fixed top navigation highlight
+  useEffect(() => {
+    if (view !== "profile") return;
+    const updateActiveSection = () => {
+      const workEl = document.getElementById("work");
+      if (!workEl) {
+        setActiveProfileSection("profile");
+        return;
+      }
+      const rect = workEl.getBoundingClientRect();
+      setActiveProfileSection(
+        rect.top <= window.innerHeight * 0.45 ? "work" : "profile"
+      );
+    };
+
+    updateActiveSection();
+    window.addEventListener("scroll", updateActiveSection, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", updateActiveSection);
+    };
+  }, [view]);
+
   // Handle mounted scene entrance transitions across Profile / Disciplines / Detail
   useLayoutEffect(() => {
     const scene = pendingSceneRef.current;
@@ -540,6 +634,39 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
 
     if (view === "profile" && (scene === "enter-profile" || scene === "direct-profile")) {
       pendingSceneRef.current = null;
+      const targetHash = pendingProfileTargetRef.current;
+      pendingProfileTargetRef.current = null;
+
+      if (targetHash === "#work") {
+        revealProfileImmediate();
+        const workEl = document.getElementById("work");
+        if (workEl) {
+          if (lenisRef.current) {
+            lenisRef.current.resize();
+            lenisRef.current.scrollTo(workEl, { offset: -72, immediate: true });
+          } else {
+            workEl.scrollIntoView({ behavior: "instant" });
+          }
+        }
+        if (!reducedMotionRef.current && profileStageRef.current) {
+          gsap.fromTo(
+            profileStageRef.current,
+            { opacity: 0 },
+            {
+              opacity: 1,
+              duration: 0.28,
+              ease: "power2.out",
+              onComplete: () => {
+                isTransitioningRef.current = false;
+              },
+            }
+          );
+        } else {
+          isTransitioningRef.current = false;
+        }
+        return;
+      }
+
       lenisRef.current?.scrollTo(0, { immediate: true });
 
       if (scene === "direct-profile" || reducedMotionRef.current || getProfileAnchor()) {
@@ -616,9 +743,6 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
             visibility: "visible",
           });
         }
-        if (backToProfileRef.current) {
-          gsap.set(backToProfileRef.current, { opacity: 1, x: 0 });
-        }
         gsap.set([eyebrowRef.current, metaRef.current], { opacity: 1 });
         if (eyebrowBorderRef.current) {
           gsap.set(eyebrowBorderRef.current, { scaleX: 1, opacity: 1 });
@@ -642,9 +766,6 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
           visibility: "visible",
         });
       }
-      if (backToProfileRef.current) {
-        gsap.set(backToProfileRef.current, { opacity: 0, x: -10 });
-      }
       gsap.set([eyebrowRef.current, metaRef.current], { opacity: 0 });
       if (eyebrowBorderRef.current) {
         gsap.set(eyebrowBorderRef.current, { scaleX: 0, opacity: 1 });
@@ -666,13 +787,6 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
       });
       transitionTlRef.current = tl;
 
-      if (backToProfileRef.current) {
-        tl.to(
-          backToProfileRef.current,
-          { opacity: 1, x: 0, duration: 0.45, ease: "power3.out" },
-          0
-        );
-      }
       tl.to(
         [eyebrowRef.current, metaRef.current],
         { opacity: 1, duration: 0.45, ease: "power2.out" },
@@ -721,13 +835,8 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
 
       const drawerEl = drawerRef.current;
       const dockedEl = dockedHeaderRef.current;
-      const leftEl = drawerLeftRef.current;
-      const cardEls = drawerRightRef.current
-        ? Array.from(
-            drawerRightRef.current.querySelectorAll<HTMLElement>(
-              "[data-build-card]"
-            )
-          )
+      const cardEls = drawerEl
+        ? Array.from(drawerEl.querySelectorAll<HTMLElement>("[data-build-card]"))
         : [];
 
       if (scene === "direct-detail" || reducedMotionRef.current) {
@@ -736,9 +845,6 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
             opacity: 1,
             visibility: "hidden",
           });
-        }
-        if (backToProfileRef.current) {
-          gsap.set(backToProfileRef.current, { opacity: 0, x: -8 });
         }
         gsap.set([eyebrowRef.current, metaRef.current], { opacity: 0 });
         if (eyebrowBorderRef.current) {
@@ -771,7 +877,6 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
         }
         if (dockedEl) gsap.set(dockedEl, { opacity: 1, clearProps: "transform" });
         if (drawerEl) gsap.set(drawerEl, { clipPath: "none", opacity: 1 });
-        if (leftEl) gsap.set(leftEl, { opacity: 1, y: 0 });
         if (cardEls.length) gsap.set(cardEls, { opacity: 1, y: 0 });
         lenisRef.current?.resize();
         const project = cardEls.find((card) => `#${card.id}` === window.location.hash);
@@ -795,7 +900,6 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
       if (drawerEl) {
         gsap.set(drawerEl, { clipPath: "inset(0% 0% 100% 0%)", opacity: 1 });
       }
-      if (leftEl) gsap.set(leftEl, { opacity: 0, y: 18 });
       if (cardEls.length) gsap.set(cardEls, { opacity: 0, y: 30 });
       if (dockedEl) gsap.set(dockedEl, { opacity: 1 });
 
@@ -808,18 +912,11 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
       });
       transitionTlRef.current = tl;
 
-      // 0.00s - 0.30s: Dismiss top-left "<- Profile", eyebrow, and unclicked rows
+      // 0.00s - 0.30s: Dismiss eyebrow, metadata, and unclicked rows
       tl.add(() => {
         if (clickedHeader) gsap.set(clickedHeader, { opacity: 0 });
       }, 0);
 
-      if (backToProfileRef.current) {
-        tl.to(
-          backToProfileRef.current,
-          { opacity: 0, x: -8, duration: 0.2, ease: "power2.in" },
-          0
-        );
-      }
       if (clickedMeta) {
         tl.to(
           clickedMeta,
@@ -886,13 +983,6 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
           0.45
         );
       }
-      if (leftEl) {
-        tl.to(
-          leftEl,
-          { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" },
-          0.55
-        );
-      }
       if (cardEls.length) {
         tl.to(
           cardEls,
@@ -955,7 +1045,7 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
 
   // Transition: Disciplines or Detail -> Profile
   const goToProfile = useCallback(
-    (options?: { fromPopState?: boolean }) => {
+    (options?: { fromPopState?: boolean; targetHash?: "#work" }) => {
       if (
         viewRef.current === "profile" ||
         !introSettledRef.current ||
@@ -965,17 +1055,25 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
       }
 
       isTransitioningRef.current = true;
+      hideCursorPreview(true);
       setLightboxState(null);
       lenisRef.current?.start();
       transitionTlRef.current?.kill();
       activeFlipRef.current?.kill();
 
+      pendingProfileTargetRef.current = options?.targetHash ?? null;
+
       if (!options?.fromPopState) {
         playClick();
-        window.history.pushState({ view: "profile" }, "", window.location.pathname);
+        const nextUrl = options?.targetHash
+          ? `${window.location.pathname}${options.targetHash}`
+          : window.location.pathname;
+        window.history.pushState({ view: "profile" }, "", nextUrl);
       }
 
-      lenisRef.current?.scrollTo(0, { immediate: true });
+      if (!options?.targetHash) {
+        lenisRef.current?.scrollTo(0, { immediate: true });
+      }
 
       if (reducedMotionRef.current) {
         pendingSceneRef.current = "direct-profile";
@@ -1018,13 +1116,6 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
       });
       transitionTlRef.current = tl;
 
-      if (backToProfileRef.current) {
-        tl.to(
-          backToProfileRef.current,
-          { opacity: 0, x: -10, duration: 0.25, ease: "power2.in" },
-          0
-        );
-      }
       tl.to(
         [eyebrowRef.current, eyebrowBorderRef.current, metaRef.current],
         { opacity: 0, duration: 0.25, ease: "power2.in" },
@@ -1042,6 +1133,50 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
           },
           0
         );
+      }
+    },
+    [hideCursorPreview, playClick]
+  );
+
+  // Direct Transition: Profile (Featured Works) -> Discipline Detail
+  const inspectDisciplineFromProfile = useCallback(
+    (slug: string) => {
+      if (
+        viewRef.current !== "profile" ||
+        !introSettledRef.current ||
+        isTransitioningRef.current
+      ) {
+        return;
+      }
+
+      isTransitioningRef.current = true;
+      transitionTlRef.current?.kill();
+      playClick();
+      window.history.replaceState(window.history.state, "", "#work");
+      const nextUrl = `${window.location.pathname}?view=disciplines&discipline=${encodeURIComponent(slug)}`;
+      window.history.pushState({ view: "detail", discipline: slug }, "", nextUrl);
+
+      if (reducedMotionRef.current) {
+        pendingSceneRef.current = "direct-detail";
+        setActiveSlug(slug);
+        setView("detail");
+        return;
+      }
+
+      const tl = gsap.timeline({
+        onComplete: () => {
+          pendingSceneRef.current = "direct-detail";
+          setActiveSlug(slug);
+          setView("detail");
+        },
+      });
+      transitionTlRef.current = tl;
+
+      if (profileStageRef.current) {
+        tl.to(profileStageRef.current, {
+          opacity: 0,
+          duration: 0.24,
+        });
       }
     },
     [playClick]
@@ -1063,6 +1198,7 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
       if (!rowHeaderEl) return;
 
       isTransitioningRef.current = true;
+      hideCursorPreview(true);
       gsap.killTweensOf(Object.values(rowRefs.current).filter(Boolean));
       lenisRef.current?.scrollTo(0, { immediate: true });
 
@@ -1082,7 +1218,7 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
       setActiveSlug(slug);
       setView("detail");
     },
-    [playClick]
+    [hideCursorPreview, playClick]
   );
 
   // Reverse Option 1 Takeover: Detail -> Disciplines
@@ -1098,6 +1234,7 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
       }
 
       isTransitioningRef.current = true;
+      hideCursorPreview(true);
       setLightboxState(null);
       lenisRef.current?.start();
       transitionTlRef.current?.kill();
@@ -1123,13 +1260,8 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
 
       const dockedEl = dockedHeaderRef.current;
       const drawerEl = drawerRef.current;
-      const leftEl = drawerLeftRef.current;
-      const cardEls = drawerRightRef.current
-        ? Array.from(
-            drawerRightRef.current.querySelectorAll<HTMLElement>(
-              "[data-build-card]"
-            )
-          )
+      const cardEls = drawerEl
+        ? Array.from(drawerEl.querySelectorAll<HTMLElement>("[data-build-card]"))
         : [];
 
       if (reducedMotionRef.current || !dockedEl || !rowHeaderEl) {
@@ -1159,13 +1291,6 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
         tl.to(
           cardEls,
           { opacity: 0, y: 18, duration: 0.22, stagger: 0.04, ease: "power2.in" },
-          0
-        );
-      }
-      if (leftEl) {
-        tl.to(
-          leftEl,
-          { opacity: 0, y: 14, duration: 0.2, ease: "power2.in" },
           0
         );
       }
@@ -1204,14 +1329,7 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
       }, 0.22);
       tl.to({}, { duration: 0.74 }, 0.22);
 
-      // Restore top-left "<- Profile", header, and 4 discipline rows
-      if (backToProfileRef.current) {
-        tl.to(
-          backToProfileRef.current,
-          { opacity: 1, x: 0, duration: 0.38, ease: "power3.out" },
-          0.38
-        );
-      }
+      // Restore discipline header and 4 discipline rows
       if (clickedRow) {
         tl.to(
           clickedRow,
@@ -1258,7 +1376,7 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
         );
       }
     },
-    []
+    [hideCursorPreview]
   );
 
   // Global skip-intro, Escape, and popstate handlers.
@@ -1346,7 +1464,30 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
     openDiscipline,
   ]);
 
-  const handleRowEnter = (hoveredSlug: string) => {
+  const switchDisciplineInDetail = useCallback(
+    (slug: string) => {
+      if (
+        viewRef.current !== "detail" ||
+        isTransitioningRef.current ||
+        activeSlugRef.current === slug
+      ) {
+        return;
+      }
+      playClick();
+      setLightboxState(null);
+      lenisRef.current?.scrollTo(0, { immediate: true });
+      const nextUrl = `${window.location.pathname}?view=disciplines&discipline=${encodeURIComponent(slug)}`;
+      window.history.pushState({ view: "detail", discipline: slug }, "", nextUrl);
+      pendingSceneRef.current = "direct-detail";
+      setActiveSlug(slug);
+    },
+    [playClick]
+  );
+
+  const handleRowEnter = (
+    hoveredSlug: string,
+    event?: ReactMouseEvent<HTMLButtonElement>
+  ) => {
     if (
       !introSettled ||
       view !== "disciplines" ||
@@ -1357,28 +1498,37 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
     }
 
     playHoverTick();
+    setHoveredDisciplineSlug(hoveredSlug);
+
+    if (event) {
+      updateCursorPreviewPos(
+        event.clientX,
+        event.clientY,
+        !isPreviewVisibleRef.current
+      );
+      if (!isPreviewVisibleRef.current && previewCardRef.current) {
+        isPreviewVisibleRef.current = true;
+        gsap.killTweensOf(previewCardRef.current, "opacity,scale");
+        gsap.fromTo(
+          previewCardRef.current,
+          { opacity: 0, scale: 0.96 },
+          { opacity: 1, scale: 1, duration: 0.24, ease: "power2.out" }
+        );
+      }
+    }
 
     for (const d of DISCIPLINES) {
       const el = rowRefs.current[d.slug];
-      const border = rowBorderRefs.current[d.slug];
       if (!el) continue;
 
       if (d.slug === hoveredSlug) {
         gsap.to(el, {
-          x: 12,
+          x: 10,
           opacity: 1,
           duration: 0.28,
           ease: "power2.out",
           overwrite: "auto",
         });
-        if (border) {
-          gsap.to(border, {
-            backgroundColor: "rgba(255, 255, 255, 0.28)",
-            duration: 0.28,
-            ease: "power2.out",
-            overwrite: "auto",
-          });
-        }
       } else {
         gsap.to(el, {
           x: 0,
@@ -1387,16 +1537,21 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
           ease: "power2.out",
           overwrite: "auto",
         });
-        if (border) {
-          gsap.to(border, {
-            backgroundColor: "rgba(255, 255, 255, 0.08)",
-            duration: 0.28,
-            ease: "power2.out",
-            overwrite: "auto",
-          });
-        }
       }
     }
+  };
+
+  const handleListMouseMove = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (
+      !introSettled ||
+      view !== "disciplines" ||
+      isTransitioningRef.current ||
+      reducedMotionRef.current ||
+      !isPreviewVisibleRef.current
+    ) {
+      return;
+    }
+    updateCursorPreviewPos(event.clientX, event.clientY);
   };
 
   const handleListLeave = () => {
@@ -1409,9 +1564,10 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
       return;
     }
 
+    hideCursorPreview();
+
     for (const d of DISCIPLINES) {
       const el = rowRefs.current[d.slug];
-      const border = rowBorderRefs.current[d.slug];
       if (!el) continue;
       gsap.to(el, {
         x: 0,
@@ -1420,20 +1576,13 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
         ease: "power2.out",
         overwrite: "auto",
       });
-      if (border) {
-        gsap.to(border, {
-          backgroundColor: "rgba(255, 255, 255, 0.08)",
-          duration: 0.28,
-          ease: "power2.out",
-          overwrite: "auto",
-        });
-      }
     }
   };
 
   const handleReplayIntro = () => {
     if (isTransitioningRef.current) return;
     playClick();
+    hideCursorPreview(true);
     setLightboxState(null);
     try {
       sessionStorage.removeItem(INTRO_SESSION_KEY);
@@ -1453,6 +1602,15 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
   };
 
   const isProfile = view === "profile";
+  const previewDiscipline =
+    getDisciplineBySlug(hoveredDisciplineSlug) ?? DISCIPLINES[0];
+  const lightboxDisciplineIndex =
+    activeDiscipline?.index ??
+    (lightboxState
+      ? DISCIPLINES.find((d) =>
+          d.builds.some((b) => b.id === lightboxState.build.id)
+        )?.index ?? "01"
+      : "01");
 
   const navigateProfile = (event: ReactMouseEvent<HTMLAnchorElement>) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -1467,9 +1625,85 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
     target.focus({ preventScroll: true });
 
     const lenis = lenisRef.current;
-    if (lenis) lenis.scrollTo(target, { duration: 0.85, immediate: reducedMotionRef.current });
+    if (lenis) lenis.scrollTo(target, { offset: -72, duration: 0.85, immediate: reducedMotionRef.current });
     else target.scrollIntoView({ behavior: "instant" });
   };
+
+  const handleNavProfile = () => {
+    if (!introSettledRef.current || isTransitioningRef.current) return;
+    if (viewRef.current === "profile") {
+      playClick();
+      if (window.location.hash) {
+        window.history.replaceState(window.history.state, "", window.location.pathname);
+      }
+      const lenis = lenisRef.current;
+      if (lenis) {
+        lenis.scrollTo(0, { duration: 0.85, immediate: reducedMotionRef.current });
+      } else {
+        window.scrollTo({ top: 0, behavior: "instant" });
+      }
+      return;
+    }
+    goToProfile();
+  };
+
+  const handleNavWorks = () => {
+    if (!introSettledRef.current || isTransitioningRef.current) return;
+    if (viewRef.current === "profile") {
+      const workEl = document.getElementById("work");
+      if (!workEl) return;
+      playClick();
+      if (window.location.hash !== "#work") {
+        window.history.pushState(window.history.state, "", "#work");
+      }
+      workEl.focus({ preventScroll: true });
+      const lenis = lenisRef.current;
+      if (lenis) {
+        lenis.scrollTo(workEl, {
+          offset: -72,
+          duration: 0.85,
+          immediate: reducedMotionRef.current,
+        });
+      } else {
+        workEl.scrollIntoView({ behavior: "instant" });
+      }
+      return;
+    }
+    goToProfile({ targetHash: "#work" });
+  };
+
+  const handleNavDisciplines = () => {
+    if (!introSettledRef.current || isTransitioningRef.current) return;
+    if (viewRef.current === "profile") {
+      goToDisciplines();
+      return;
+    }
+    if (viewRef.current === "detail") {
+      playClick();
+      closeDiscipline();
+      return;
+    }
+    playClick();
+    const lenis = lenisRef.current;
+    if (lenis) {
+      lenis.scrollTo(0, { duration: 0.85, immediate: reducedMotionRef.current });
+    } else {
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+  };
+
+  const handleNavSelect = (id: (typeof NAV_ITEMS)[number]["id"]) => {
+    if (id === "profile") handleNavProfile();
+    else if (id === "work") handleNavWorks();
+    else handleNavDisciplines();
+  };
+
+  const navSection: "profile" | "work" | "disciplines" =
+    view === "disciplines" || view === "detail"
+      ? "disciplines"
+      : activeProfileSection === "work"
+        ? "work"
+        : "profile";
 
   return (
     <div
@@ -1484,16 +1718,27 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
           ref={brandRef}
           type="button"
           data-flip-id="brand-name"
-          tabIndex={isProfile ? -1 : 0}
+          tabIndex={introSettled ? 0 : -1}
           onClick={() => {
             if (viewRef.current !== "profile") {
               goToProfile();
+            } else {
+              playClick();
+              const lenis = lenisRef.current;
+              if (lenis) {
+                lenis.scrollTo(0, {
+                  duration: 0.85,
+                  immediate: reducedMotionRef.current,
+                });
+              } else {
+                window.scrollTo({ top: 0, behavior: "instant" });
+              }
             }
           }}
           aria-label={
             view !== "profile"
               ? `${AUTHOR_NAME} — return to profile introduction`
-              : AUTHOR_NAME
+              : `${AUTHOR_NAME} — scroll to top`
           }
           className={`${UNDOCKED_BRAND_CLASS} opacity-0 pointer-events-none text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40`}
         >
@@ -1518,31 +1763,43 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
         </button>
       </div>
 
-      {/* Top-Left Navigation Anchor when in Disciplines View */}
-      {(view === "disciplines" || view === "detail") && (
-        <div className="portfolio-scene-nav pointer-events-none absolute inset-x-0 top-0 z-40">
-          <div className="portfolio-frame flex items-center">
-            <button
-              ref={backToProfileRef}
-              type="button"
-              onClick={() => goToProfile()}
-              onMouseEnter={playHoverTick}
-              tabIndex={view === "disciplines" ? 0 : -1}
-              className={`group inline-flex items-center gap-2 font-mono text-xs tracking-[0.06em] text-zinc-400 transition-colors duration-200 hover:text-zinc-100 focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40 ${
-                view === "disciplines"
-                  ? "pointer-events-auto cursor-pointer"
-                  : "pointer-events-none"
-              }`}
-            >
-              <ArrowLeft
-                aria-hidden="true"
-                className="h-3.5 w-3.5 text-zinc-500 transition-transform duration-200 group-hover:-translate-x-0.5 group-hover:text-zinc-100"
-              />
-              <span>Home</span>
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Persistent Fixed Top Navigation Bar */}
+      <header
+        ref={topNavBarRef}
+        inert={!introSettled}
+        className={`fixed top-0 inset-x-0 z-40 flex h-16 items-center justify-between border-b border-white/[0.06] bg-[#0E0E10]/80 px-6 opacity-0 backdrop-blur-md md:px-12 ${
+          introSettled ? "pointer-events-auto" : "pointer-events-none"
+        }`}
+      >
+        <nav aria-label="Primary navigation" className="flex items-center gap-4 sm:gap-7">
+          {NAV_ITEMS.map((item) => {
+            const isActive = navSection === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleNavSelect(item.id)}
+                onMouseEnter={playHoverTick}
+                aria-current={isActive ? "page" : undefined}
+                className={`relative py-1 font-mono text-[10px] sm:text-xs uppercase tracking-[0.12em] whitespace-nowrap transition-colors duration-200 cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40 ${
+                  isActive
+                    ? "text-zinc-100"
+                    : "text-zinc-500 hover:text-zinc-200"
+                }`}
+              >
+                <span>{item.label}</span>
+                {isActive && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -bottom-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-zinc-100"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+        <div aria-hidden="true" className="w-28 sm:w-40 shrink-0" />
+      </header>
 
       {/* Main Stage */}
       <main className="portfolio-main relative min-h-screen w-full">
@@ -1607,43 +1864,52 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
 
             <AboutSequence onNavigate={navigateProfile} />
 
-            <WorkShowcase availableMedia={availableMedia} onBrowse={() => goToDisciplines()} onSelect={playClick} />
+            <WorkShowcase
+              onBrowse={() => goToDisciplines()}
+              onInspectDiscipline={inspectDisciplineFromProfile}
+              onSelect={playClick}
+              onHoverTick={playHoverTick}
+              onExpandMedia={openLightbox}
+            />
           </div>
         )}
 
-        {/* STAGE 2: Full-Width 4-Discipline Index (Kept mounted during Detail for Flip) */}
+        {/* STAGE 2: Scannable Hairline-Divided Disciplines Index (view === "disciplines") */}
         {(view === "disciplines" || view === "detail") && (
           <section
             ref={disciplinesStageRef}
             aria-label="Engineering Disciplines"
-            onMouseLeave={handleListLeave}
             className={
               view === "detail"
-                ? "portfolio-frame portfolio-index pointer-events-none absolute inset-x-0 top-0 opacity-0 invisible"
-                : "portfolio-frame portfolio-index relative opacity-0 invisible"
+                ? "pointer-events-none absolute inset-x-0 top-0 mx-auto w-full max-w-6xl px-6 md:px-12 pt-24 md:pt-28 pb-20 opacity-0 invisible"
+                : "relative mx-auto w-full max-w-6xl px-6 md:px-12 pt-24 md:pt-28 pb-20 opacity-0 invisible"
             }
           >
-            <div className="relative mb-6 md:mb-8 flex flex-wrap items-center justify-between gap-4 pb-4">
+            <div className="relative flex flex-wrap items-baseline justify-between gap-4 pb-5">
               <div
                 ref={eyebrowRef}
-                className="text-3xl font-medium tracking-[-0.02em] sm:text-4xl"
+                className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-500"
               >
-                <h1>Disciplines</h1>
+                01–04 {"//"} Disciplines
               </div>
               <div
                 ref={metaRef}
-                className="font-mono text-xs text-zinc-400"
+                className="font-mono text-[11px] uppercase tracking-[0.12em] text-zinc-500"
               >
-                {DISCIPLINES.length} areas of work
+                Click to inspect
               </div>
               <span
                 ref={eyebrowBorderRef}
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-px origin-left bg-white/[0.08]"
+                className="absolute inset-x-0 bottom-0 h-px origin-left bg-white/10"
               />
             </div>
 
-            <div className="flex flex-col">
+            <div
+              onMouseLeave={handleListLeave}
+              onMouseMove={handleListMouseMove}
+              className="flex flex-col"
+            >
               {DISCIPLINES.map((discipline) => (
                 <button
                   key={discipline.slug}
@@ -1652,30 +1918,30 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
                   }}
                   type="button"
                   onClick={() => openDiscipline(discipline.slug)}
-                  onMouseEnter={() => handleRowEnter(discipline.slug)}
+                  onMouseEnter={(e) => handleRowEnter(discipline.slug, e)}
                   onFocus={() => handleRowEnter(discipline.slug)}
                   onBlur={handleListLeave}
                   tabIndex={view === "detail" ? -1 : 0}
-                  className="group relative w-full py-6 md:py-8 text-left cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
+                  className="group relative w-full text-left cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
                 >
-                  <div className="overflow-hidden">
+                  <div className="overflow-hidden py-5 md:py-6">
                     <div
                       ref={(el) => {
                         rowMaskRefs.current[discipline.slug] = el;
                       }}
-                      className="portfolio-index-row"
+                      className="flex items-center justify-between gap-6"
                     >
                       <div
                         ref={(el) => {
                           rowHeaderRefs.current[discipline.slug] = el;
                         }}
                         data-flip-id={`discipline-header-${discipline.slug}`}
-                        className="portfolio-index-title"
+                        className="inline-flex items-baseline gap-4 md:gap-7"
                       >
-                        <span className="font-mono text-xs text-zinc-400">
-                          {discipline.index}
+                        <span className="shrink-0 font-mono text-xs md:text-sm tracking-[0.12em] text-zinc-500 transition-colors duration-200 group-hover:text-zinc-300">
+                          {discipline.index} /
                         </span>
-                        <span className="portfolio-index-name">
+                        <span className="text-xl md:text-2xl font-medium tracking-tight text-zinc-200 transition-colors duration-200 group-hover:text-[#F4F4F6] leading-snug">
                           {discipline.title}
                         </span>
                       </div>
@@ -1684,14 +1950,15 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
                         ref={(el) => {
                           rowMetaRefs.current[discipline.slug] = el;
                         }}
-                        className="portfolio-index-meta"
+                        className="flex shrink-0 items-center gap-5 font-mono text-[11px] uppercase tracking-[0.14em] text-zinc-500"
                       >
-                        <span className="text-zinc-400 group-hover:text-zinc-200">
-                          {discipline.primaryTags.join(" / ")}
+                        <span className="hidden sm:inline">
+                          {String(discipline.builds.length).padStart(2, "0")}{" "}
+                          {discipline.builds.length === 1 ? "BUILD" : "BUILDS"}
                         </span>
                         <ArrowUpRight
                           aria-hidden="true"
-                          className="h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[#F4F4F6]"
+                          className="h-4 w-4 shrink-0 text-zinc-500 transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[#F4F4F6]"
                         />
                       </div>
                     </div>
@@ -1701,72 +1968,51 @@ export function PortfolioShell({ availableMedia }: { availableMedia: string[] })
                       rowBorderRefs.current[discipline.slug] = el;
                     }}
                     aria-hidden="true"
-                    className="pointer-events-none absolute inset-x-0 bottom-0 h-px origin-left bg-white/[0.08]"
+                    className="block h-px w-full origin-left bg-white/10"
                   />
                 </button>
               ))}
             </div>
+
+            {view === "disciplines" && (
+              <div
+                ref={previewCardRef}
+                aria-hidden="true"
+                className="pointer-events-none fixed left-0 top-0 z-30 hidden aspect-[16/10] w-[280px] overflow-hidden rounded border border-white/15 bg-[#141417] opacity-0 shadow-2xl md:block"
+              >
+                <MediaSurface
+                  src={previewDiscipline.previewMedia}
+                  alt={`${previewDiscipline.title} preview`}
+                  gradient={previewDiscipline.previewGradient}
+                  label={previewDiscipline.previewLabel}
+                />
+              </div>
+            )}
           </section>
         )}
 
-        {/* STAGE 3: Option 1 Shared-Element Discipline Showcase (view === "detail") */}
+        {/* STAGE 3: Full-Width Editorial Case-Study Stream (view === "detail") */}
         {view === "detail" && activeDiscipline && (
-          <section
-            aria-labelledby="discipline-title"
-            className="portfolio-frame portfolio-detail relative"
-          >
-            <button
-              type="button"
-              onClick={() => closeDiscipline()}
-              onMouseEnter={playHoverTick}
-              className="portfolio-detail-back inline-flex cursor-pointer items-center gap-2 font-mono text-xs text-zinc-300 hover:text-white focus-visible:outline-1 focus-visible:outline-offset-4"
-            >
-              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-              All disciplines
-            </button>
-
-            <div
-              ref={dockedHeaderRef}
-              data-flip-id={`discipline-header-${activeDiscipline.slug}`}
-              className="portfolio-detail-heading"
-            >
-              <span className="font-mono text-sm text-zinc-400">{activeDiscipline.index}</span>
-              <h1 id="discipline-title">{activeDiscipline.title}</h1>
-            </div>
-
-            <div ref={drawerRef} className="portfolio-detail-body">
-              <div ref={drawerLeftRef}>
-                <p className="max-w-[38ch] text-base leading-relaxed text-zinc-300 sm:text-lg">
-                  {activeDiscipline.summary}
-                </p>
-                <p className="mt-6 font-mono text-xs leading-relaxed text-zinc-400">
-                  {activeDiscipline.stack.join(" / ")}
-                </p>
-              </div>
-
-              <div ref={drawerRightRef} className="min-w-0">
-                {activeDiscipline.builds.map((build) => (
-                  <DisciplineCard
-                    key={build.id}
-                    build={{ ...build, media: build.media.filter((src) => availableMedia.includes(src)) }}
-                    onExpandMedia={openLightbox}
-                    onClickSound={playClick}
-                    onHoverTick={playHoverTick}
-                  />
-                ))}
-              </div>
-            </div>
-          </section>
+          <DetailStream
+            discipline={activeDiscipline}
+            dockedHeaderRef={dockedHeaderRef}
+            drawerRef={drawerRef}
+            onBack={() => closeDiscipline()}
+            onSelectDiscipline={switchDisciplineInDetail}
+            onExpandMedia={openLightbox}
+            onClickSound={playClick}
+            onHoverTick={playHoverTick}
+          />
         )}
       </main>
 
       {/* Full-Screen Cinema Lightbox Modal */}
-      {lightboxState && activeDiscipline && (
+      {lightboxState && (
         <CinemaLightbox
           key={`${lightboxState.build.id}-${lightboxState.index}`}
           build={lightboxState.build}
           initialIndex={lightboxState.index}
-          disciplineIndex={activeDiscipline.index}
+          disciplineIndex={lightboxDisciplineIndex}
           onClose={closeLightbox}
           onClickSound={playClick}
           onHoverTick={playHoverTick}
