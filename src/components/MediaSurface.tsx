@@ -31,7 +31,7 @@ export function MediaSurface({
 
   return (
     <div
-      className={`relative h-full w-full overflow-hidden bg-[#101013] ${className}`}
+      className={`relative h-full w-full overflow-hidden bg-[#141417] ${className}`}
       style={{ backgroundImage: gradient }}
     >
       {/* Subtle architectural blueprint grid overlay */}
@@ -81,7 +81,7 @@ export function MediaSurface({
           preload="metadata"
           onCanPlay={() => setLoadedSrc(src)}
           onError={() => setFailedSrc(src)}
-          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+          className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 ${
             isLoaded ? "opacity-100" : "opacity-0"
           }`}
         />
@@ -95,7 +95,7 @@ export function MediaSurface({
           alt={alt}
           onLoad={() => setLoadedSrc(src)}
           onError={() => setFailedSrc(src)}
-          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+          className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 ${
             isLoaded ? "opacity-100" : "opacity-0"
           }`}
         />
