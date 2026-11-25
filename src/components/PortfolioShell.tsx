@@ -1,40 +1,70 @@
 "use client";
 
 import Lenis from "lenis";
-import { ArrowLeft, ArrowUpRight, RotateCcw } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  RotateCcw,
+} from "lucide-react";
 import {
   useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
+import { AboutSequence } from "@/components/AboutSequence";
+import { CinemaLightbox } from "@/components/CinemaLightbox";
 import { DisciplineCard } from "@/components/DisciplineCard";
-import { DISCIPLINES, getDisciplineBySlug } from "@/data/disciplines";
+import { GraphiteBackdrop, type GraphiteBackdropHandle } from "@/components/GraphiteBackdrop";
+import { WorkShowcase } from "@/components/WorkShowcase";
+import {
+  DISCIPLINES,
+  getDisciplineBySlug,
+  type ProjectBuild,
+} from "@/data/disciplines";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
 import { Flip, gsap } from "@/lib/gsap";
 
 const INTRO_SESSION_KEY = "jal_portfolio_intro_seen";
 const AUTHOR_NAME = "Justin A. Labrador";
 
+function getProfileAnchor() {
+  const target = document.getElementById(window.location.hash.slice(1));
+  return target?.matches("#about, #work, .portfolio-chapter") ? target : null;
+}
+
 const UNDOCKED_WRAPPER_CLASS =
   "fixed inset-0 z-40 pointer-events-none flex items-center justify-center px-6";
 const DOCKED_WRAPPER_CLASS =
-  "fixed inset-x-0 top-0 z-40 pointer-events-none flex items-center justify-end px-6 md:px-12 lg:px-16 py-6 md:py-8";
+  "portfolio-brand-docked absolute inset-x-0 top-0 z-40 pointer-events-none flex w-full items-center justify-end";
 
 const UNDOCKED_BRAND_CLASS =
   "text-[clamp(2.25rem,5vw,4.75rem)] font-medium tracking-[-0.04em] text-[#F4F4F6] whitespace-nowrap leading-none";
 const DOCKED_BRAND_CLASS =
-  "text-sm sm:text-base md:text-lg font-medium tracking-[-0.02em] text-[#F4F4F6] whitespace-nowrap leading-none transition-colors duration-200 hover:text-white";
+  "text-sm sm:text-base md:text-lg font-medium tracking-[-0.02em] text-[#F4F4F6] whitespace-nowrap leading-none transition-colors duration-200 hover:text-white focus-visible:outline-1 focus-visible:outline-offset-4 focus-visible:outline-white/60";
 
-type PendingTransition =
-  | { type: "open"; slug: string }
-  | { type: "direct"; slug: string }
+type ViewState = "profile" | "disciplines" | "detail";
+
+type PendingScene =
+  | "replay-profile"
+  | "enter-profile"
+  | "direct-profile"
+  | "enter-disciplines"
+  | "direct-disciplines"
+  | "open-detail"
+  | "direct-detail"
   | null;
 
-export function PortfolioShell() {
+export function PortfolioShell({ availableMedia }: { availableMedia: string[] }) {
+  const [view, setView] = useState<ViewState>("profile");
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const [introSettled, setIntroSettled] = useState(false);
+  const [lightboxState, setLightboxState] = useState<{
+    build: ProjectBuild;
+    index: number;
+  } | null>(null);
 
   const { soundEnabled, toggleSound, playKeystroke, playHoverTick, playClick } =
     useSoundEffects();
@@ -44,12 +74,19 @@ export function PortfolioShell() {
   const brandRef = useRef<HTMLButtonElement>(null);
   const brandTextRef = useRef<HTMLSpanElement>(null);
   const cursorRef = useRef<HTMLSpanElement>(null);
+  const graphiteRef = useRef<GraphiteBackdropHandle>(null);
 
+  // Stage 1: Profile & Introduction refs
+  const profileStageRef = useRef<HTMLDivElement>(null);
+  const profileDividerRef = useRef<HTMLDivElement>(null);
+
+  // Stage 2: Full-width 4-Discipline Index refs
+  const disciplinesStageRef = useRef<HTMLElement>(null);
+  const backToProfileRef = useRef<HTMLButtonElement>(null);
   const eyebrowRef = useRef<HTMLDivElement>(null);
   const eyebrowBorderRef = useRef<HTMLSpanElement>(null);
   const metaRef = useRef<HTMLDivElement>(null);
-  const skillsListRef = useRef<HTMLElement>(null);
-  const bottomBarRef = useRef<HTMLDivElement>(null);
+  const bottomBarRef = useRef<HTMLElement>(null);
 
   const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const rowMaskRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -57,8 +94,9 @@ export function PortfolioShell() {
   const rowMetaRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const rowBorderRefs = useRef<Record<string, HTMLSpanElement | null>>({});
 
+  // Stage 3: Option 1 Detail refs
   const dockedHeaderRef = useRef<HTMLDivElement>(null);
-  const drawerRef = useRef<HTMLElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
   const drawerLeftRef = useRef<HTMLDivElement>(null);
   const drawerRightRef = useRef<HTMLDivElement>(null);
 
@@ -66,8 +104,13 @@ export function PortfolioShell() {
   const reducedMotionRef = useRef(false);
   const isIntroRunningRef = useRef(false);
   const isTransitioningRef = useRef(false);
+  const viewRef = useRef<ViewState>("profile");
   const activeSlugRef = useRef<string | null>(null);
   const introSettledRef = useRef(false);
+  const lightboxStateRef = useRef<{
+    build: ProjectBuild;
+    index: number;
+  } | null>(null);
 
   const masterTlRef = useRef<gsap.core.Timeline | null>(null);
   const cursorBlinkRef = useRef<gsap.core.Tween | null>(null);
@@ -75,7 +118,11 @@ export function PortfolioShell() {
   const transitionTlRef = useRef<gsap.core.Timeline | null>(null);
 
   const pendingFlipStateRef = useRef<Flip.FlipState | null>(null);
-  const pendingTransitionRef = useRef<PendingTransition>(null);
+  const pendingSceneRef = useRef<PendingScene>(null);
+
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
 
   useEffect(() => {
     activeSlugRef.current = activeSlug;
@@ -85,7 +132,45 @@ export function PortfolioShell() {
     introSettledRef.current = introSettled;
   }, [introSettled]);
 
+  useEffect(() => {
+    lightboxStateRef.current = lightboxState;
+  }, [lightboxState]);
+
   const activeDiscipline = getDisciplineBySlug(activeSlug);
+
+  const getProfileBlocks = useCallback((): HTMLElement[] => {
+    if (!profileStageRef.current) return [];
+    return Array.from(
+      profileStageRef.current.querySelectorAll<HTMLElement>(
+        "[data-profile-block]"
+      )
+    );
+  }, []);
+
+  const getProfileMasks = useCallback((): HTMLElement[] => {
+    if (!profileStageRef.current) return [];
+    return Array.from(
+      profileStageRef.current.querySelectorAll<HTMLElement>(
+        "[data-profile-mask]"
+      )
+    );
+  }, []);
+
+  const openLightbox = useCallback(
+    (build: ProjectBuild, index = 0) => {
+      playClick();
+      lenisRef.current?.stop();
+      setLightboxState({ build, index });
+    },
+    [playClick]
+  );
+
+  const closeLightbox = useCallback(() => {
+    if (!lightboxStateRef.current) return;
+    playClick();
+    setLightboxState(null);
+    lenisRef.current?.start();
+  }, [playClick]);
 
   const applyDockedBrandInstant = useCallback(() => {
     if (brandWrapperRef.current) {
@@ -103,45 +188,29 @@ export function PortfolioShell() {
     }
   }, []);
 
-  const revealSettledIdleImmediate = useCallback(() => {
+  const revealProfileImmediate = useCallback(() => {
     applyDockedBrandInstant();
-    if (skillsListRef.current) {
-      gsap.set(skillsListRef.current, { opacity: 1, visibility: "visible" });
+    graphiteRef.current?.settle(false);
+    if (profileStageRef.current) {
+      gsap.set(profileStageRef.current, { opacity: 1, visibility: "visible" });
     }
-    gsap.set([eyebrowRef.current, metaRef.current, bottomBarRef.current], {
+    const blocks = getProfileBlocks();
+    const masks = getProfileMasks();
+    if (blocks.length) gsap.set(blocks, { opacity: 1, y: 0 });
+    if (masks.length) gsap.set(masks, { yPercent: 0 });
+    if (profileDividerRef.current) {
+      gsap.set(profileDividerRef.current, { scaleX: 1, opacity: 1, y: 0 });
+    }
+    gsap.set(bottomBarRef.current, {
       opacity: 1,
+      y: 0,
     });
-    if (eyebrowBorderRef.current) {
-      gsap.set(eyebrowBorderRef.current, { scaleX: 1, opacity: 1 });
-    }
-    for (const d of DISCIPLINES) {
-      const row = rowRefs.current[d.slug];
-      const mask = rowMaskRefs.current[d.slug];
-      const header = rowHeaderRefs.current[d.slug];
-      const meta = rowMetaRefs.current[d.slug];
-      const border = rowBorderRefs.current[d.slug];
-      if (row) {
-        gsap.set(row, {
-          opacity: 1,
-          x: 0,
-          y: 0,
-        });
-      }
-      if (border) {
-        gsap.set(border, {
-          scaleX: 1,
-          opacity: 1,
-          backgroundColor: "rgba(255, 255, 255, 0.08)",
-        });
-      }
-      if (mask) gsap.set(mask, { yPercent: 0 });
-      if (header) gsap.set(header, { opacity: 1, clearProps: "transform" });
-      if (meta) gsap.set(meta, { opacity: 1 });
-    }
     lenisRef.current?.start();
+    getProfileAnchor()?.scrollIntoView({ behavior: "instant" });
     isIntroRunningRef.current = false;
+    isTransitioningRef.current = false;
     setIntroSettled(true);
-  }, [applyDockedBrandInstant]);
+  }, [applyDockedBrandInstant, getProfileBlocks, getProfileMasks]);
 
   const finishIntroImmediate = useCallback(() => {
     if (!isIntroRunningRef.current) return;
@@ -150,7 +219,6 @@ export function PortfolioShell() {
     if (cursorRef.current) {
       gsap.killTweensOf(cursorRef.current);
     }
-    masterTlRef.current?.progress(1);
     masterTlRef.current?.kill();
     masterTlRef.current = null;
     activeFlipRef.current?.progress(1);
@@ -162,8 +230,8 @@ export function PortfolioShell() {
     } catch {
       // Ignore storage access failures in private/restricted environments
     }
-    revealSettledIdleImmediate();
-  }, [revealSettledIdleImmediate]);
+    revealProfileImmediate();
+  }, [revealProfileImmediate]);
 
   const startIntroChoreography = useCallback(() => {
     cursorBlinkRef.current?.kill();
@@ -173,6 +241,7 @@ export function PortfolioShell() {
     masterTlRef.current?.kill();
     activeFlipRef.current?.kill();
     transitionTlRef.current?.kill();
+    lenisRef.current?.scrollTo(0, { immediate: true, force: true });
 
     if (reducedMotionRef.current) {
       try {
@@ -180,14 +249,18 @@ export function PortfolioShell() {
       } catch {
         // Ignore storage access failures
       }
-      revealSettledIdleImmediate();
+      revealProfileImmediate();
       return;
     }
 
     isIntroRunningRef.current = true;
+    isTransitioningRef.current = false;
     setIntroSettled(false);
     lenisRef.current?.stop();
-    lenisRef.current?.scrollTo(0, { immediate: true });
+
+    const graphite = graphiteRef.current;
+    const drawing = { merge: 0 };
+    graphite?.drawIntro(0, 0);
 
     if (brandWrapperRef.current) {
       brandWrapperRef.current.className = UNDOCKED_WRAPPER_CLASS;
@@ -207,47 +280,21 @@ export function PortfolioShell() {
       });
     }
 
-    gsap.set([eyebrowRef.current, metaRef.current, bottomBarRef.current], {
+    // Keep Profile stage completely hidden during Acts 1 and 2
+    if (profileStageRef.current) {
+      gsap.set(profileStageRef.current, { opacity: 0, visibility: "hidden" });
+    }
+    const blocks = getProfileBlocks();
+    const masks = getProfileMasks();
+    if (blocks.length) gsap.set(blocks, { opacity: 1, y: 0 });
+    if (masks.length) gsap.set(masks, { yPercent: 100 });
+    if (profileDividerRef.current) {
+      gsap.set(profileDividerRef.current, { scaleX: 0, opacity: 1, y: 0 });
+    }
+    gsap.set(bottomBarRef.current, {
       opacity: 0,
+      y: 0,
     });
-    if (eyebrowBorderRef.current) {
-      gsap.set(eyebrowBorderRef.current, { scaleX: 0, opacity: 1 });
-    }
-    // Keep entire disciplines section hidden during Acts 1 and 2
-    if (skillsListRef.current) {
-      gsap.set(skillsListRef.current, { opacity: 0, visibility: "hidden" });
-    }
-
-    const masks: HTMLDivElement[] = [];
-    const borders: HTMLSpanElement[] = [];
-    for (const d of DISCIPLINES) {
-      const row = rowRefs.current[d.slug];
-      const mask = rowMaskRefs.current[d.slug];
-      const header = rowHeaderRefs.current[d.slug];
-      const meta = rowMetaRefs.current[d.slug];
-      const border = rowBorderRefs.current[d.slug];
-      if (row) {
-        gsap.set(row, {
-          opacity: 1,
-          x: 0,
-          y: 0,
-        });
-      }
-      if (border) {
-        gsap.set(border, {
-          scaleX: 0,
-          opacity: 1,
-          backgroundColor: "rgba(255, 255, 255, 0.08)",
-        });
-        borders.push(border);
-      }
-      if (mask) {
-        gsap.set(mask, { yPercent: 100 });
-        masks.push(mask);
-      }
-      if (header) gsap.set(header, { opacity: 1, clearProps: "transform" });
-      if (meta) gsap.set(meta, { opacity: 1 });
-    }
 
     cursorBlinkRef.current = gsap.to(cursorRef.current, {
       opacity: 0,
@@ -258,6 +305,9 @@ export function PortfolioShell() {
     });
 
     const masterTl = gsap.timeline({
+      onUpdate: () => {
+        graphite?.drawIntro(masterTl.time(), drawing.merge);
+      },
       onComplete: () => {
         cursorBlinkRef.current?.kill();
         cursorBlinkRef.current = null;
@@ -266,6 +316,7 @@ export function PortfolioShell() {
         if (brandRef.current) {
           brandRef.current.className = `${DOCKED_BRAND_CLASS} pointer-events-auto cursor-pointer`;
         }
+        graphite?.settle(true);
         try {
           sessionStorage.setItem(INTRO_SESSION_KEY, "1");
         } catch {
@@ -275,7 +326,7 @@ export function PortfolioShell() {
     });
     masterTlRef.current = masterTl;
 
-    // Act 1: Typewriter + keystroke ASMR + 0.4s dramatic hold
+    // Act 1: Typewriter + Web Audio keystrokes + 0.4s dramatic hold
     let lastTypedLen = 0;
     masterTl.to(brandTextRef.current, {
       duration: 1.35,
@@ -294,7 +345,8 @@ export function PortfolioShell() {
     });
     masterTl.to({}, { duration: 0.4 });
 
-    // Act 2: Spatial Flight (GSAP Flip)
+    // Act 2: Dock the name in the profile masthead.
+    masterTl.addLabel("intro-dock");
     masterTl.add(() => {
       const brandEl = brandRef.current;
       const wrapperEl = brandWrapperRef.current;
@@ -321,55 +373,51 @@ export function PortfolioShell() {
         scale: true,
         absolute: true,
       });
-    });
+    }, "intro-dock");
+    masterTl.to(drawing, { merge: 1, duration: 0.86, ease: "power2.inOut" }, "intro-dock");
 
     // Reserve 0.9s before Act 3 starts (overlaps final 0.2s of the 1.1s Flip flight)
-    masterTl.to({}, { duration: 0.9 });
+    masterTl.to({}, { duration: 0.9 }, "intro-dock");
 
-    // Act 3: Reveal disciplines container, draw hairlines left-to-right, and cascade text
+    // Act 3: Reveal the profile in reading order with masked slides.
     masterTl.add(() => {
       lenisRef.current?.start();
-      if (skillsListRef.current) {
-        gsap.set(skillsListRef.current, { opacity: 1, visibility: "visible" });
+      if (profileStageRef.current) {
+        gsap.set(profileStageRef.current, {
+          opacity: 1,
+          visibility: "visible",
+        });
       }
     });
-    masterTl.to([eyebrowRef.current, metaRef.current, bottomBarRef.current], {
-      opacity: 1,
-      duration: 0.55,
-      ease: "power2.out",
-    });
-    if (eyebrowBorderRef.current) {
+    if (masks.length) {
+      masterTl.to(masks, {
+        yPercent: 0,
+        duration: 0.85,
+        ease: "power4.out",
+        stagger: 0.07,
+      });
+    }
+    if (profileDividerRef.current) {
       masterTl.to(
-        eyebrowBorderRef.current,
+        profileDividerRef.current,
         {
           scaleX: 1,
-          duration: 0.65,
-          ease: "power3.out",
+          duration: 0.9,
+          ease: "power4.out",
         },
         "<"
       );
     }
     masterTl.to(
-      masks,
+      bottomBarRef.current,
       {
-        yPercent: 0,
-        duration: 0.85,
-        ease: "power4.out",
-        stagger: 0.08,
+        opacity: 1,
+        duration: 0.55,
+        ease: "power2.out",
       },
       "<"
     );
-    masterTl.to(
-      borders,
-      {
-        scaleX: 1,
-        duration: 0.85,
-        ease: "power4.out",
-        stagger: 0.08,
-      },
-      "<"
-    );
-  }, [playKeystroke, revealSettledIdleImmediate]);
+  }, [getProfileBlocks, getProfileMasks, playKeystroke, revealProfileImmediate]);
 
   // Lenis initialization & ticker sync
   useEffect(() => {
@@ -394,14 +442,22 @@ export function PortfolioShell() {
     };
   }, []);
 
-  // Initial mount choreography (handles reduced motion, sessionStorage, ?discipline=, and fresh intro)
+  // Initial mount routing & choreography
   useLayoutEffect(() => {
-    reducedMotionRef.current = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
+    const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    reducedMotionRef.current = motionPreference.matches;
+
+    const handleMotionChange = (event: MediaQueryListEvent) => {
+      reducedMotionRef.current = event.matches;
+      if (!event.matches) return;
+      if (isIntroRunningRef.current) finishIntroImmediate();
+      else graphiteRef.current?.settle(false);
+    };
+    motionPreference.addEventListener("change", handleMotionChange);
 
     const ctx = gsap.context(() => {
       const params = new URLSearchParams(window.location.search);
+      const urlView = params.get("view");
       const urlDiscipline = getDisciplineBySlug(params.get("discipline"));
       let introSeen = false;
       try {
@@ -411,23 +467,290 @@ export function PortfolioShell() {
       }
 
       if (urlDiscipline) {
+        if (urlView !== "disciplines") {
+          window.history.replaceState(
+            { view: "detail", discipline: urlDiscipline.slug },
+            "",
+            `?view=disciplines&discipline=${encodeURIComponent(urlDiscipline.slug)}`
+          );
+        }
         applyDockedBrandInstant();
-        if (skillsListRef.current) {
-          gsap.set(skillsListRef.current, { opacity: 1, visibility: "hidden" });
+        gsap.set(bottomBarRef.current, { opacity: 1 });
+        try {
+          sessionStorage.setItem(INTRO_SESSION_KEY, "1");
+        } catch {
+          // Ignore storage access failures
+        }
+        lenisRef.current?.start();
+        setIntroSettled(true);
+        pendingSceneRef.current = "direct-detail";
+        setActiveSlug(urlDiscipline.slug);
+        setView("detail");
+        return;
+      }
+
+      if (urlView === "disciplines") {
+        applyDockedBrandInstant();
+        gsap.set(bottomBarRef.current, { opacity: 1 });
+        try {
+          sessionStorage.setItem(INTRO_SESSION_KEY, "1");
+        } catch {
+          // Ignore storage access failures
+        }
+        lenisRef.current?.start();
+        setIntroSettled(true);
+        pendingSceneRef.current = "direct-disciplines";
+        setView("disciplines");
+        return;
+      }
+
+      if (reducedMotionRef.current || introSeen || getProfileAnchor()) {
+        revealProfileImmediate();
+        return;
+      }
+
+      startIntroChoreography();
+    }, rootRef);
+
+    return () => {
+      motionPreference.removeEventListener("change", handleMotionChange);
+      cursorBlinkRef.current?.kill();
+      masterTlRef.current?.kill();
+      activeFlipRef.current?.kill();
+      transitionTlRef.current?.kill();
+      ctx.revert();
+    };
+  }, [
+    applyDockedBrandInstant,
+    finishIntroImmediate,
+    revealProfileImmediate,
+    startIntroChoreography,
+  ]);
+
+  // Handle mounted scene entrance transitions across Profile / Disciplines / Detail
+  useLayoutEffect(() => {
+    const scene = pendingSceneRef.current;
+    if (!scene) return;
+
+    if (view === "profile" && scene === "replay-profile") {
+      pendingSceneRef.current = null;
+      startIntroChoreography();
+      return;
+    }
+
+    if (view === "profile" && (scene === "enter-profile" || scene === "direct-profile")) {
+      pendingSceneRef.current = null;
+      lenisRef.current?.scrollTo(0, { immediate: true });
+
+      if (scene === "direct-profile" || reducedMotionRef.current || getProfileAnchor()) {
+        revealProfileImmediate();
+        return;
+      }
+
+      if (profileStageRef.current) {
+        gsap.set(profileStageRef.current, {
+          opacity: 1,
+          visibility: "visible",
+        });
+      }
+      const blocks = getProfileBlocks();
+      const masks = getProfileMasks();
+      if (blocks.length) gsap.set(blocks, { opacity: 1, y: 0 });
+      if (masks.length) gsap.set(masks, { yPercent: 100 });
+      if (profileDividerRef.current) {
+        gsap.set(profileDividerRef.current, { scaleX: 0, opacity: 1, y: 0 });
+      }
+
+      const tl = gsap.timeline({
+        onComplete: () => {
+          lenisRef.current?.resize();
+          isTransitioningRef.current = false;
+        },
+      });
+      transitionTlRef.current = tl;
+
+      if (masks.length) {
+        tl.to(masks, {
+          yPercent: 0,
+          duration: 0.78,
+          ease: "power4.out",
+          stagger: 0.06,
+        });
+      }
+      if (profileDividerRef.current) {
+        tl.to(
+          profileDividerRef.current,
+          { scaleX: 1, duration: 0.85, ease: "power4.out" },
+          "<"
+        );
+      }
+      return;
+    }
+
+    if (
+      view === "disciplines" &&
+      (scene === "enter-disciplines" || scene === "direct-disciplines")
+    ) {
+      pendingSceneRef.current = null;
+      lenisRef.current?.scrollTo(0, { immediate: true });
+
+      const masks: HTMLDivElement[] = [];
+      const borders: HTMLSpanElement[] = [];
+      for (const d of DISCIPLINES) {
+        const row = rowRefs.current[d.slug];
+        const mask = rowMaskRefs.current[d.slug];
+        const header = rowHeaderRefs.current[d.slug];
+        const meta = rowMetaRefs.current[d.slug];
+        const border = rowBorderRefs.current[d.slug];
+        if (row) gsap.set(row, { opacity: 1, x: 0, y: 0 });
+        if (header) gsap.set(header, { opacity: 1, clearProps: "transform" });
+        if (meta) gsap.set(meta, { opacity: 1 });
+        if (mask) masks.push(mask);
+        if (border) borders.push(border);
+      }
+
+      if (scene === "direct-disciplines" || reducedMotionRef.current) {
+        if (disciplinesStageRef.current) {
+          gsap.set(disciplinesStageRef.current, {
+            opacity: 1,
+            visibility: "visible",
+          });
+        }
+        if (backToProfileRef.current) {
+          gsap.set(backToProfileRef.current, { opacity: 1, x: 0 });
+        }
+        gsap.set([eyebrowRef.current, metaRef.current], { opacity: 1 });
+        if (eyebrowBorderRef.current) {
+          gsap.set(eyebrowBorderRef.current, { scaleX: 1, opacity: 1 });
+        }
+        if (masks.length) gsap.set(masks, { yPercent: 0 });
+        if (borders.length) {
+          gsap.set(borders, {
+            scaleX: 1,
+            opacity: 1,
+            backgroundColor: "rgba(255, 255, 255, 0.08)",
+          });
+        }
+        lenisRef.current?.resize();
+        isTransitioningRef.current = false;
+        return;
+      }
+
+      if (disciplinesStageRef.current) {
+        gsap.set(disciplinesStageRef.current, {
+          opacity: 1,
+          visibility: "visible",
+        });
+      }
+      if (backToProfileRef.current) {
+        gsap.set(backToProfileRef.current, { opacity: 0, x: -10 });
+      }
+      gsap.set([eyebrowRef.current, metaRef.current], { opacity: 0 });
+      if (eyebrowBorderRef.current) {
+        gsap.set(eyebrowBorderRef.current, { scaleX: 0, opacity: 1 });
+      }
+      if (masks.length) gsap.set(masks, { yPercent: 100 });
+      if (borders.length) {
+        gsap.set(borders, {
+          scaleX: 0,
+          opacity: 1,
+          backgroundColor: "rgba(255, 255, 255, 0.08)",
+        });
+      }
+
+      const tl = gsap.timeline({
+        onComplete: () => {
+          lenisRef.current?.resize();
+          isTransitioningRef.current = false;
+        },
+      });
+      transitionTlRef.current = tl;
+
+      if (backToProfileRef.current) {
+        tl.to(
+          backToProfileRef.current,
+          { opacity: 1, x: 0, duration: 0.45, ease: "power3.out" },
+          0
+        );
+      }
+      tl.to(
+        [eyebrowRef.current, metaRef.current],
+        { opacity: 1, duration: 0.45, ease: "power2.out" },
+        0.04
+      );
+      if (eyebrowBorderRef.current) {
+        tl.to(
+          eyebrowBorderRef.current,
+          { scaleX: 1, duration: 0.65, ease: "power3.out" },
+          0.04
+        );
+      }
+      if (masks.length) {
+        tl.to(
+          masks,
+          {
+            yPercent: 0,
+            duration: 0.8,
+            ease: "power4.out",
+            stagger: 0.08,
+          },
+          0.08
+        );
+      }
+      if (borders.length) {
+        tl.to(
+          borders,
+          {
+            scaleX: 1,
+            duration: 0.8,
+            ease: "power4.out",
+            stagger: 0.08,
+          },
+          0.08
+        );
+      }
+      return;
+    }
+
+    if (
+      view === "detail" &&
+      activeSlug &&
+      (scene === "open-detail" || scene === "direct-detail")
+    ) {
+      pendingSceneRef.current = null;
+
+      const drawerEl = drawerRef.current;
+      const dockedEl = dockedHeaderRef.current;
+      const leftEl = drawerLeftRef.current;
+      const cardEls = drawerRightRef.current
+        ? Array.from(
+            drawerRightRef.current.querySelectorAll<HTMLElement>(
+              "[data-build-card]"
+            )
+          )
+        : [];
+
+      if (scene === "direct-detail" || reducedMotionRef.current) {
+        if (disciplinesStageRef.current) {
+          gsap.set(disciplinesStageRef.current, {
+            opacity: 1,
+            visibility: "hidden",
+          });
+        }
+        if (backToProfileRef.current) {
+          gsap.set(backToProfileRef.current, { opacity: 0, x: -8 });
         }
         gsap.set([eyebrowRef.current, metaRef.current], { opacity: 0 });
         if (eyebrowBorderRef.current) {
           gsap.set(eyebrowBorderRef.current, { scaleX: 1, opacity: 0 });
         }
-        gsap.set(bottomBarRef.current, { opacity: 1 });
-
         for (const d of DISCIPLINES) {
           const row = rowRefs.current[d.slug];
           const mask = rowMaskRefs.current[d.slug];
           const header = rowHeaderRefs.current[d.slug];
           const meta = rowMetaRefs.current[d.slug];
           const border = rowBorderRefs.current[d.slug];
-          const isTarget = d.slug === urlDiscipline.slug;
+          const isTarget = d.slug === activeSlug;
           if (mask) gsap.set(mask, { yPercent: 0 });
           if (row) {
             gsap.set(row, {
@@ -446,206 +769,294 @@ export function PortfolioShell() {
           if (header) gsap.set(header, { opacity: isTarget ? 0 : 1 });
           if (meta) gsap.set(meta, { opacity: isTarget ? 0 : 1 });
         }
-
-        try {
-          sessionStorage.setItem(INTRO_SESSION_KEY, "1");
-        } catch {
-          // Ignore storage access failures
-        }
-
-        lenisRef.current?.start();
-        setIntroSettled(true);
-        pendingTransitionRef.current = {
-          type: "direct",
-          slug: urlDiscipline.slug,
-        };
-        setActiveSlug(urlDiscipline.slug);
-        return;
-      }
-
-      if (reducedMotionRef.current || introSeen) {
-        revealSettledIdleImmediate();
-        return;
-      }
-
-      startIntroChoreography();
-    }, rootRef);
-
-    return () => {
-      cursorBlinkRef.current?.kill();
-      masterTlRef.current?.kill();
-      activeFlipRef.current?.kill();
-      transitionTlRef.current?.kill();
-      ctx.revert();
-    };
-  }, [
-    applyDockedBrandInstant,
-    revealSettledIdleImmediate,
-    startIntroChoreography,
-  ]);
-
-  // Phase C: Open choreography after activeSlug mounts the docked header & drawer
-  useLayoutEffect(() => {
-    if (!activeSlug) return;
-    const pending = pendingTransitionRef.current;
-    if (!pending || pending.slug !== activeSlug) return;
-    pendingTransitionRef.current = null;
-
-    const drawerEl = drawerRef.current;
-    const dockedEl = dockedHeaderRef.current;
-    const leftEl = drawerLeftRef.current;
-    const cardEls = drawerRightRef.current
-      ? Array.from(
-          drawerRightRef.current.querySelectorAll<HTMLElement>(
-            "[data-build-card]"
-          )
-        )
-      : [];
-
-    if (pending.type === "direct" || reducedMotionRef.current) {
-      if (dockedEl) gsap.set(dockedEl, { opacity: 1, clearProps: "transform" });
-      if (drawerEl) gsap.set(drawerEl, { clipPath: "none", opacity: 1 });
-      if (leftEl) gsap.set(leftEl, { opacity: 1, y: 0 });
-      if (cardEls.length) gsap.set(cardEls, { opacity: 1, y: 0 });
-      if (skillsListRef.current) {
-        gsap.set(skillsListRef.current, { visibility: "hidden" });
-      }
-      lenisRef.current?.resize();
-      isTransitioningRef.current = false;
-      return;
-    }
-
-    const capturedState = pendingFlipStateRef.current;
-    pendingFlipStateRef.current = null;
-
-    const clickedRow = rowRefs.current[activeSlug];
-    const clickedHeader = rowHeaderRefs.current[activeSlug];
-    const clickedMeta = rowMetaRefs.current[activeSlug];
-    const clickedBorder = rowBorderRefs.current[activeSlug];
-    const siblingRows = DISCIPLINES.filter((d) => d.slug !== activeSlug)
-      .map((d) => rowRefs.current[d.slug])
-      .filter((el): el is HTMLButtonElement => Boolean(el));
-
-    if (drawerEl) {
-      gsap.set(drawerEl, { clipPath: "inset(0% 0% 100% 0%)", opacity: 1 });
-    }
-    if (leftEl) gsap.set(leftEl, { opacity: 0, y: 18 });
-    if (cardEls.length) gsap.set(cardEls, { opacity: 0, y: 30 });
-    if (dockedEl) gsap.set(dockedEl, { opacity: 1 });
-
-    const tl = gsap.timeline({
-      onComplete: () => {
-        if (drawerEl) gsap.set(drawerEl, { clipPath: "none" });
+        if (dockedEl) gsap.set(dockedEl, { opacity: 1, clearProps: "transform" });
+        if (drawerEl) gsap.set(drawerEl, { clipPath: "none", opacity: 1 });
+        if (leftEl) gsap.set(leftEl, { opacity: 1, y: 0 });
+        if (cardEls.length) gsap.set(cardEls, { opacity: 1, y: 0 });
         lenisRef.current?.resize();
+        const project = cardEls.find((card) => `#${card.id}` === window.location.hash);
+        project?.focus({ preventScroll: true });
+        project?.scrollIntoView({ behavior: "instant" });
         isTransitioningRef.current = false;
-      },
-    });
-    transitionTlRef.current = tl;
-
-    // 0.00s - 0.30s: Sibling dismissal & list row cleanup
-    tl.add(() => {
-      if (clickedHeader) gsap.set(clickedHeader, { opacity: 0 });
-    }, 0);
-
-    if (clickedMeta) {
-      tl.to(
-        clickedMeta,
-        { opacity: 0, duration: 0.2, ease: "power2.in" },
-        0
-      );
-    }
-    if (clickedRow) {
-      tl.to(
-        clickedRow,
-        {
-          x: 0,
-          duration: 0.2,
-          ease: "power2.in",
-        },
-        0
-      );
-    }
-    if (clickedBorder) {
-      tl.to(
-        clickedBorder,
-        { opacity: 0, duration: 0.2, ease: "power2.in" },
-        0
-      );
-    }
-    tl.to(
-      [eyebrowRef.current, eyebrowBorderRef.current, metaRef.current],
-      { opacity: 0, duration: 0.2, ease: "power2.in" },
-      0
-    );
-    if (siblingRows.length) {
-      tl.to(
-        siblingRows,
-        {
-          opacity: 0,
-          y: 24,
-          duration: 0.28,
-          stagger: 0.035,
-          ease: "power3.in",
-        },
-        0
-      );
-    }
-    tl.add(() => {
-      if (skillsListRef.current) {
-        gsap.set(skillsListRef.current, { visibility: "hidden" });
+        return;
       }
-    }, 0.32);
 
-    // 0.05s - 0.85s: Shared-Element Header Morph via GSAP Flip
-    if (capturedState && dockedEl) {
-      const flipTl = Flip.from(capturedState, {
-        targets: dockedEl,
-        duration: 0.8,
-        ease: "expo.inOut",
-        scale: true,
-        absolute: true,
+      const capturedState = pendingFlipStateRef.current;
+      pendingFlipStateRef.current = null;
+
+      const clickedRow = rowRefs.current[activeSlug];
+      const clickedHeader = rowHeaderRefs.current[activeSlug];
+      const clickedMeta = rowMetaRefs.current[activeSlug];
+      const clickedBorder = rowBorderRefs.current[activeSlug];
+      const siblingRows = DISCIPLINES.filter((d) => d.slug !== activeSlug)
+        .map((d) => rowRefs.current[d.slug])
+        .filter((el): el is HTMLButtonElement => Boolean(el));
+
+      if (drawerEl) {
+        gsap.set(drawerEl, { clipPath: "inset(0% 0% 100% 0%)", opacity: 1 });
+      }
+      if (leftEl) gsap.set(leftEl, { opacity: 0, y: 18 });
+      if (cardEls.length) gsap.set(cardEls, { opacity: 0, y: 30 });
+      if (dockedEl) gsap.set(dockedEl, { opacity: 1 });
+
+      const tl = gsap.timeline({
+        onComplete: () => {
+          if (drawerEl) gsap.set(drawerEl, { clipPath: "none" });
+          lenisRef.current?.resize();
+          isTransitioningRef.current = false;
+        },
       });
-      activeFlipRef.current = flipTl;
-      tl.add(flipTl, 0.05);
-    }
+      transitionTlRef.current = tl;
 
-    // 0.45s - 1.05s: Editorial Drawer Unfold (clip-path wipe + staggered cards)
-    if (drawerEl) {
-      tl.to(
-        drawerEl,
-        {
-          clipPath: "inset(0% 0% 0% 0%)",
-          duration: 0.6,
-          ease: "expo.out",
-        },
-        0.45
-      );
-    }
-    if (leftEl) {
-      tl.to(
-        leftEl,
-        { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" },
-        0.55
-      );
-    }
-    if (cardEls.length) {
-      tl.to(
-        cardEls,
-        {
-          y: 0,
-          opacity: 1,
-          duration: 0.55,
-          stagger: 0.1,
-          ease: "power3.out",
-        },
-        0.58
-      );
-    }
-  }, [activeSlug]);
+      // 0.00s - 0.30s: Dismiss top-left "<- Profile", eyebrow, and unclicked rows
+      tl.add(() => {
+        if (clickedHeader) gsap.set(clickedHeader, { opacity: 0 });
+      }, 0);
 
+      if (backToProfileRef.current) {
+        tl.to(
+          backToProfileRef.current,
+          { opacity: 0, x: -8, duration: 0.2, ease: "power2.in" },
+          0
+        );
+      }
+      if (clickedMeta) {
+        tl.to(
+          clickedMeta,
+          { opacity: 0, duration: 0.2, ease: "power2.in" },
+          0
+        );
+      }
+      if (clickedRow) {
+        tl.to(clickedRow, { x: 0, duration: 0.2, ease: "power2.in" }, 0);
+      }
+      if (clickedBorder) {
+        tl.to(
+          clickedBorder,
+          { opacity: 0, duration: 0.2, ease: "power2.in" },
+          0
+        );
+      }
+      tl.to(
+        [eyebrowRef.current, eyebrowBorderRef.current, metaRef.current],
+        { opacity: 0, duration: 0.2, ease: "power2.in" },
+        0
+      );
+      if (siblingRows.length) {
+        tl.to(
+          siblingRows,
+          {
+            opacity: 0,
+            y: 24,
+            duration: 0.28,
+            stagger: 0.035,
+            ease: "power3.in",
+          },
+          0
+        );
+      }
+      tl.add(() => {
+        if (disciplinesStageRef.current) {
+          gsap.set(disciplinesStageRef.current, { visibility: "hidden" });
+        }
+      }, 0.32);
+
+      // 0.05s - 0.85s: Shared-Element Header Morph via GSAP Flip
+      if (capturedState && dockedEl) {
+        const flipTl = Flip.from(capturedState, {
+          targets: dockedEl,
+          duration: 0.8,
+          ease: "expo.inOut",
+          scale: true,
+          absolute: true,
+        });
+        activeFlipRef.current = flipTl;
+        tl.add(flipTl, 0.05);
+      }
+
+      // 0.45s - 1.05s: Editorial Drawer Unfold
+      if (drawerEl) {
+        tl.to(
+          drawerEl,
+          {
+            clipPath: "inset(0% 0% 0% 0%)",
+            duration: 0.6,
+            ease: "expo.out",
+          },
+          0.45
+        );
+      }
+      if (leftEl) {
+        tl.to(
+          leftEl,
+          { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" },
+          0.55
+        );
+      }
+      if (cardEls.length) {
+        tl.to(
+          cardEls,
+          {
+            y: 0,
+            opacity: 1,
+            duration: 0.55,
+            stagger: 0.1,
+            ease: "power3.out",
+          },
+          0.58
+        );
+      }
+    }
+  }, [activeSlug, getProfileBlocks, getProfileMasks, revealProfileImmediate, startIntroChoreography, view]);
+
+  // Transition: Profile -> Disciplines
+  const goToDisciplines = useCallback(
+    (options?: { fromPopState?: boolean }) => {
+      if (
+        viewRef.current !== "profile" ||
+        !introSettledRef.current ||
+        isTransitioningRef.current
+      ) {
+        return;
+      }
+
+      isTransitioningRef.current = true;
+      transitionTlRef.current?.kill();
+
+      if (!options?.fromPopState) {
+        playClick();
+        window.history.replaceState(window.history.state, "", "#work");
+        window.history.pushState({ view: "disciplines" }, "", "?view=disciplines");
+      }
+
+      if (reducedMotionRef.current) {
+        pendingSceneRef.current = "direct-disciplines";
+        setView("disciplines");
+        return;
+      }
+
+      const tl = gsap.timeline({
+        onComplete: () => {
+          pendingSceneRef.current = "enter-disciplines";
+          setView("disciplines");
+        },
+      });
+      transitionTlRef.current = tl;
+
+      if (profileStageRef.current) {
+        tl.to(profileStageRef.current, {
+          opacity: 0,
+          duration: 0.24,
+        });
+      }
+    },
+    [playClick]
+  );
+
+  // Transition: Disciplines or Detail -> Profile
+  const goToProfile = useCallback(
+    (options?: { fromPopState?: boolean }) => {
+      if (
+        viewRef.current === "profile" ||
+        !introSettledRef.current ||
+        isTransitioningRef.current
+      ) {
+        return;
+      }
+
+      isTransitioningRef.current = true;
+      setLightboxState(null);
+      lenisRef.current?.start();
+      transitionTlRef.current?.kill();
+      activeFlipRef.current?.kill();
+
+      if (!options?.fromPopState) {
+        playClick();
+        window.history.pushState({ view: "profile" }, "", window.location.pathname);
+      }
+
+      lenisRef.current?.scrollTo(0, { immediate: true });
+
+      if (reducedMotionRef.current) {
+        pendingSceneRef.current = "direct-profile";
+        setActiveSlug(null);
+        setView("profile");
+        return;
+      }
+
+      if (viewRef.current === "detail") {
+        const outTargets = [dockedHeaderRef.current, drawerRef.current].filter(
+          (el) => el !== null
+        );
+        const tl = gsap.timeline({
+          onComplete: () => {
+            pendingSceneRef.current = "enter-profile";
+            setActiveSlug(null);
+            setView("profile");
+          },
+        });
+        transitionTlRef.current = tl;
+
+        tl.to(outTargets, {
+          opacity: 0,
+          y: -20,
+          duration: 0.34,
+          ease: "power3.in",
+        });
+        return;
+      }
+
+      const rows = DISCIPLINES.map((d) => rowRefs.current[d.slug]).filter(
+        (el): el is HTMLButtonElement => Boolean(el)
+      );
+      const tl = gsap.timeline({
+        onComplete: () => {
+          pendingSceneRef.current = "enter-profile";
+          setActiveSlug(null);
+          setView("profile");
+        },
+      });
+      transitionTlRef.current = tl;
+
+      if (backToProfileRef.current) {
+        tl.to(
+          backToProfileRef.current,
+          { opacity: 0, x: -10, duration: 0.25, ease: "power2.in" },
+          0
+        );
+      }
+      tl.to(
+        [eyebrowRef.current, eyebrowBorderRef.current, metaRef.current],
+        { opacity: 0, duration: 0.25, ease: "power2.in" },
+        0
+      );
+      if (rows.length) {
+        tl.to(
+          rows,
+          {
+            opacity: 0,
+            y: 22,
+            duration: 0.32,
+            stagger: 0.03,
+            ease: "power3.in",
+          },
+          0
+        );
+      }
+    },
+    [playClick]
+  );
+
+  // Option 1 Takeover: Disciplines -> Detail
   const openDiscipline = useCallback(
     (slug: string, options?: { fromPopState?: boolean }) => {
-      if (!introSettledRef.current || isTransitioningRef.current) return;
+      if (
+        viewRef.current !== "disciplines" ||
+        !introSettledRef.current ||
+        isTransitioningRef.current
+      ) {
+        return;
+      }
       if (activeSlugRef.current === slug) return;
 
       const rowHeaderEl = rowHeaderRefs.current[slug];
@@ -657,33 +1068,47 @@ export function PortfolioShell() {
 
       if (!options?.fromPopState) {
         playClick();
-        const nextUrl = `${window.location.pathname}?discipline=${encodeURIComponent(slug)}`;
-        window.history.pushState({ discipline: slug }, "", nextUrl);
+        const nextUrl = `${window.location.pathname}?view=disciplines&discipline=${encodeURIComponent(slug)}`;
+        window.history.pushState({ view: "detail", discipline: slug }, "", nextUrl);
       }
 
       if (!reducedMotionRef.current) {
         pendingFlipStateRef.current = Flip.getState(rowHeaderEl);
-        pendingTransitionRef.current = { type: "open", slug };
+        pendingSceneRef.current = "open-detail";
       } else {
-        pendingTransitionRef.current = { type: "direct", slug };
+        pendingSceneRef.current = "direct-detail";
       }
 
       setActiveSlug(slug);
+      setView("detail");
     },
     [playClick]
   );
 
+  // Reverse Option 1 Takeover: Detail -> Disciplines
   const closeDiscipline = useCallback(
     (options?: { fromPopState?: boolean }) => {
       const closingSlug = activeSlugRef.current;
-      if (!closingSlug || isTransitioningRef.current) return;
+      if (
+        viewRef.current !== "detail" ||
+        !closingSlug ||
+        isTransitioningRef.current
+      ) {
+        return;
+      }
 
       isTransitioningRef.current = true;
+      setLightboxState(null);
+      lenisRef.current?.start();
       transitionTlRef.current?.kill();
       activeFlipRef.current?.kill();
 
       if (!options?.fromPopState) {
-        window.history.pushState(null, "", window.location.pathname);
+        window.history.pushState(
+          { view: "disciplines" },
+          "",
+          "?view=disciplines"
+        );
       }
 
       lenisRef.current?.scrollTo(0, { immediate: true });
@@ -708,9 +1133,9 @@ export function PortfolioShell() {
         : [];
 
       if (reducedMotionRef.current || !dockedEl || !rowHeaderEl) {
-        revealSettledIdleImmediate();
+        pendingSceneRef.current = "direct-disciplines";
         setActiveSlug(null);
-        isTransitioningRef.current = false;
+        setView("disciplines");
         return;
       }
 
@@ -723,6 +1148,7 @@ export function PortfolioShell() {
             if (header) gsap.set(header, { clearProps: "transform", opacity: 1 });
           }
           setActiveSlug(null);
+          setView("disciplines");
           lenisRef.current?.resize();
           isTransitioningRef.current = false;
         },
@@ -755,10 +1181,13 @@ export function PortfolioShell() {
         );
       }
 
-      // Reverse Flip from docked top-left header back into the skill row
+      // Reverse Flip from docked top-left header back into the discipline row
       tl.add(() => {
-        if (skillsListRef.current) {
-          gsap.set(skillsListRef.current, { opacity: 1, visibility: "visible" });
+        if (disciplinesStageRef.current) {
+          gsap.set(disciplinesStageRef.current, {
+            opacity: 1,
+            visibility: "visible",
+          });
         }
         const dockedState = Flip.getState(dockedEl);
         gsap.set(dockedEl, { opacity: 0 });
@@ -773,20 +1202,20 @@ export function PortfolioShell() {
         });
         activeFlipRef.current = reverseFlip;
       }, 0.22);
-      // Keep timeline alive until the 0.72s reverse Flip finishes before onComplete fires
       tl.to({}, { duration: 0.74 }, 0.22);
 
-      // Restore clicked row metadata/border and sibling rows
+      // Restore top-left "<- Profile", header, and 4 discipline rows
+      if (backToProfileRef.current) {
+        tl.to(
+          backToProfileRef.current,
+          { opacity: 1, x: 0, duration: 0.38, ease: "power3.out" },
+          0.38
+        );
+      }
       if (clickedRow) {
         tl.to(
           clickedRow,
-          {
-            opacity: 1,
-            x: 0,
-            y: 0,
-            duration: 0.35,
-            ease: "power2.out",
-          },
+          { opacity: 1, x: 0, y: 0, duration: 0.35, ease: "power2.out" },
           0.38
         );
       }
@@ -829,10 +1258,10 @@ export function PortfolioShell() {
         );
       }
     },
-    [revealSettledIdleImmediate]
+    []
   );
 
-  // Global skip-intro & Escape / browser popstate listeners
+  // Global skip-intro, Escape, and popstate handlers.
   useEffect(() => {
     const handleClickSkip = (event: MouseEvent) => {
       if (isIntroRunningRef.current) {
@@ -852,8 +1281,15 @@ export function PortfolioShell() {
         return;
       }
 
+      if (event.key === "Escape" && lightboxStateRef.current) {
+        event.preventDefault();
+        closeLightbox();
+        return;
+      }
+
       if (
         event.key === "Escape" &&
+        viewRef.current === "detail" &&
         activeSlugRef.current &&
         !isTransitioningRef.current
       ) {
@@ -864,11 +1300,31 @@ export function PortfolioShell() {
 
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const target = getDisciplineBySlug(params.get("discipline"));
-      if (target && target.slug !== activeSlugRef.current) {
-        openDiscipline(target.slug, { fromPopState: true });
-      } else if (!target && activeSlugRef.current) {
-        closeDiscipline({ fromPopState: true });
+      const targetDiscipline = getDisciplineBySlug(params.get("discipline"));
+      const targetView = params.get("view");
+
+      if (targetDiscipline) {
+        if (viewRef.current === "disciplines") {
+          openDiscipline(targetDiscipline.slug, { fromPopState: true });
+        } else if (viewRef.current === "profile") {
+          pendingSceneRef.current = "direct-detail";
+          setActiveSlug(targetDiscipline.slug);
+          setView("detail");
+        }
+        return;
+      }
+
+      if (targetView === "disciplines") {
+        if (viewRef.current === "detail") {
+          closeDiscipline({ fromPopState: true });
+        } else if (viewRef.current === "profile") {
+          goToDisciplines({ fromPopState: true });
+        }
+        return;
+      }
+
+      if (viewRef.current !== "profile") {
+        goToProfile({ fromPopState: true });
       }
     };
 
@@ -881,12 +1337,19 @@ export function PortfolioShell() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [closeDiscipline, finishIntroImmediate, openDiscipline]);
+  }, [
+    closeDiscipline,
+    closeLightbox,
+    finishIntroImmediate,
+    goToDisciplines,
+    goToProfile,
+    openDiscipline,
+  ]);
 
   const handleRowEnter = (hoveredSlug: string) => {
     if (
       !introSettled ||
-      activeSlug ||
+      view !== "disciplines" ||
       isTransitioningRef.current ||
       reducedMotionRef.current
     ) {
@@ -899,18 +1362,19 @@ export function PortfolioShell() {
       const el = rowRefs.current[d.slug];
       const border = rowBorderRefs.current[d.slug];
       if (!el) continue;
+
       if (d.slug === hoveredSlug) {
         gsap.to(el, {
           x: 12,
           opacity: 1,
-          duration: 0.3,
+          duration: 0.28,
           ease: "power2.out",
           overwrite: "auto",
         });
         if (border) {
           gsap.to(border, {
             backgroundColor: "rgba(255, 255, 255, 0.28)",
-            duration: 0.3,
+            duration: 0.28,
             ease: "power2.out",
             overwrite: "auto",
           });
@@ -919,14 +1383,14 @@ export function PortfolioShell() {
         gsap.to(el, {
           x: 0,
           opacity: 0.35,
-          duration: 0.3,
+          duration: 0.28,
           ease: "power2.out",
           overwrite: "auto",
         });
         if (border) {
           gsap.to(border, {
             backgroundColor: "rgba(255, 255, 255, 0.08)",
-            duration: 0.3,
+            duration: 0.28,
             ease: "power2.out",
             overwrite: "auto",
           });
@@ -938,7 +1402,7 @@ export function PortfolioShell() {
   const handleListLeave = () => {
     if (
       !introSettled ||
-      activeSlug ||
+      view !== "disciplines" ||
       isTransitioningRef.current ||
       reducedMotionRef.current
     ) {
@@ -952,14 +1416,14 @@ export function PortfolioShell() {
       gsap.to(el, {
         x: 0,
         opacity: 1,
-        duration: 0.3,
+        duration: 0.28,
         ease: "power2.out",
         overwrite: "auto",
       });
       if (border) {
         gsap.to(border, {
           backgroundColor: "rgba(255, 255, 255, 0.08)",
-          duration: 0.3,
+          duration: 0.28,
           ease: "power2.out",
           overwrite: "auto",
         });
@@ -970,35 +1434,65 @@ export function PortfolioShell() {
   const handleReplayIntro = () => {
     if (isTransitioningRef.current) return;
     playClick();
+    setLightboxState(null);
     try {
       sessionStorage.removeItem(INTRO_SESSION_KEY);
     } catch {
       // Ignore storage access failures
     }
-    if (window.location.search) {
+    if (window.location.search || window.location.hash) {
       window.history.pushState(null, "", window.location.pathname);
     }
     setActiveSlug(null);
-    startIntroChoreography();
+    if (view === "profile") {
+      startIntroChoreography();
+    } else {
+      pendingSceneRef.current = "replay-profile";
+      setView("profile");
+    }
+  };
+
+  const isProfile = view === "profile";
+
+  const navigateProfile = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+    const hash = event.currentTarget.hash;
+    const target = document.getElementById(hash.slice(1));
+    if (!target) return;
+
+    event.preventDefault();
+    playClick();
+    if (window.location.hash !== hash) window.history.pushState(window.history.state, "", hash);
+    target.focus({ preventScroll: true });
+
+    const lenis = lenisRef.current;
+    if (lenis) lenis.scrollTo(target, { duration: 0.85, immediate: reducedMotionRef.current });
+    else target.scrollIntoView({ behavior: "instant" });
   };
 
   return (
-    <div ref={rootRef} className="relative z-10 min-h-screen w-full">
-      {/* Persistent Brand Anchor (Centers in Act 1, Flies to Top-Right in Act 2) */}
+    <div
+      ref={rootRef}
+      data-portfolio-view={view}
+      className="portfolio-shell relative z-10 min-h-screen w-full"
+    >
+      {isProfile && <GraphiteBackdrop ref={graphiteRef} />}
+      {/* Persistent brand anchor for the intro and return navigation. */}
       <div ref={brandWrapperRef} className={UNDOCKED_WRAPPER_CLASS}>
         <button
           ref={brandRef}
           type="button"
           data-flip-id="brand-name"
+          tabIndex={isProfile ? -1 : 0}
           onClick={() => {
-            if (activeSlugRef.current) {
-              playClick();
-              closeDiscipline();
+            if (viewRef.current !== "profile") {
+              goToProfile();
             }
           }}
           aria-label={
-            activeDiscipline
-              ? `${AUTHOR_NAME} — return to all disciplines`
+            view !== "profile"
+              ? `${AUTHOR_NAME} — return to profile introduction`
               : AUTHOR_NAME
           }
           className={`${UNDOCKED_BRAND_CLASS} opacity-0 pointer-events-none text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40`}
@@ -1024,233 +1518,313 @@ export function PortfolioShell() {
         </button>
       </div>
 
-      {/* Pinned Top-Left Discipline Header (Mounted when Discipline Active for Flip Target) */}
-      {activeDiscipline && (
-        <header className="fixed top-0 left-0 z-40 max-w-[54vw] sm:max-w-[62vw] px-6 md:px-12 lg:px-16 py-6 md:py-8 pointer-events-none">
-          <div
-            ref={dockedHeaderRef}
-            data-flip-id={`discipline-header-${activeDiscipline.slug}`}
-            className="inline-flex items-baseline gap-3 md:gap-4"
-          >
-            <span className="shrink-0 font-mono text-xs tracking-[0.12em] text-[#71717A]">
-              {activeDiscipline.index} /
-            </span>
-            <span className="truncate text-sm sm:text-base md:text-lg font-medium tracking-[-0.02em] text-[#F4F4F6]">
-              {activeDiscipline.title}
-            </span>
+      {/* Top-Left Navigation Anchor when in Disciplines View */}
+      {(view === "disciplines" || view === "detail") && (
+        <div className="portfolio-scene-nav pointer-events-none absolute inset-x-0 top-0 z-40">
+          <div className="portfolio-frame flex items-center">
+            <button
+              ref={backToProfileRef}
+              type="button"
+              onClick={() => goToProfile()}
+              onMouseEnter={playHoverTick}
+              tabIndex={view === "disciplines" ? 0 : -1}
+              className={`group inline-flex items-center gap-2 font-mono text-xs tracking-[0.06em] text-zinc-400 transition-colors duration-200 hover:text-zinc-100 focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40 ${
+                view === "disciplines"
+                  ? "pointer-events-auto cursor-pointer"
+                  : "pointer-events-none"
+              }`}
+            >
+              <ArrowLeft
+                aria-hidden="true"
+                className="h-3.5 w-3.5 text-zinc-500 transition-transform duration-200 group-hover:-translate-x-0.5 group-hover:text-zinc-100"
+              />
+              <span>Home</span>
+            </button>
           </div>
-        </header>
+        </div>
       )}
 
-      {/* Main Editorial Stage */}
-      <main className="relative mx-auto min-h-screen w-full max-w-[1440px] px-6 md:px-12 lg:px-16">
-        {/* Idle Disciplines List (Kept mounted during Phase C for reversible Flip coordinates) */}
-        <section
-          ref={skillsListRef}
-          aria-label="Engineering Disciplines"
-          onMouseLeave={handleListLeave}
-          className={
-            activeDiscipline
-              ? "pointer-events-none absolute inset-x-0 top-0 px-6 md:px-12 lg:px-16 pt-28 md:pt-36 pb-24 opacity-0 invisible"
-              : "relative pt-28 md:pt-36 pb-24 opacity-0 invisible"
-          }
-        >
-          <div className="relative mb-8 md:mb-12 flex flex-wrap items-center justify-between gap-4 pb-4">
-            <div
-              ref={eyebrowRef}
-              className="font-mono text-[11px] uppercase tracking-[0.16em] text-[#71717A]"
-            >
-              01–04 {"//"} Core Disciplines
-            </div>
-            <div
-              ref={metaRef}
-              className="font-mono text-[11px] uppercase tracking-[0.12em] text-zinc-500"
-            >
-              Select a domain to inspect builds
-            </div>
-            <span
-              ref={eyebrowBorderRef}
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-px origin-left bg-white/[0.08]"
-            />
-          </div>
-
-          <div className="flex flex-col">
-            {DISCIPLINES.map((discipline) => (
-              <button
-                key={discipline.slug}
-                ref={(el) => {
-                  rowRefs.current[discipline.slug] = el;
-                }}
-                type="button"
-                onClick={() => openDiscipline(discipline.slug)}
-                onMouseEnter={() => handleRowEnter(discipline.slug)}
-                onFocus={() => handleRowEnter(discipline.slug)}
-                onBlur={handleListLeave}
-                tabIndex={activeDiscipline ? -1 : 0}
-                className="group relative w-full py-7 md:py-9 text-left cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
-              >
-                <div className="overflow-hidden">
-                  <div
-                    ref={(el) => {
-                      rowMaskRefs.current[discipline.slug] = el;
-                    }}
-                    className="flex flex-col gap-4 lg:flex-row lg:items-baseline lg:justify-between"
-                  >
-                    <div
-                      ref={(el) => {
-                        rowHeaderRefs.current[discipline.slug] = el;
-                      }}
-                      data-flip-id={`discipline-header-${discipline.slug}`}
-                      className="inline-flex items-baseline gap-4 md:gap-7"
-                    >
-                      <span className="shrink-0 font-mono text-xs md:text-sm tracking-[0.12em] text-[#71717A]">
-                        {discipline.index} /
-                      </span>
-                      <span className="text-2xl sm:text-3xl md:text-4xl lg:text-[2.6rem] font-medium tracking-[-0.03em] text-[#F4F4F6] leading-[1.12]">
-                        {discipline.title}
-                      </span>
-                    </div>
-
-                    <div
-                      ref={(el) => {
-                        rowMetaRefs.current[discipline.slug] = el;
-                      }}
-                      className="flex flex-wrap items-center gap-x-4 gap-y-2 pl-9 md:pl-14 lg:pl-0 lg:justify-end"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        {discipline.primaryTags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 font-mono text-[11px] tracking-[0.02em] text-zinc-400"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                      <ArrowUpRight
-                        aria-hidden="true"
-                        className="h-4 w-4 text-[#71717A] transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[#F4F4F6]"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <span
-                  ref={(el) => {
-                    rowBorderRefs.current[discipline.slug] = el;
-                  }}
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-px origin-left bg-white/[0.08]"
-                />
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Active Discipline Editorial Workspace (Phase C Drawer) */}
-        {activeDiscipline && (
-          <section
-            ref={drawerRef}
-            aria-label={`${activeDiscipline.title} Case Studies`}
-            className="relative pt-28 md:pt-36 pb-24"
+      {/* Main Stage */}
+      <main className="portfolio-main relative min-h-screen w-full">
+        {isProfile && (
+          <div
+            ref={profileStageRef}
+            className="w-full invisible opacity-0"
+            inert={!introSettled}
           >
-            <div className="border-t border-white/[0.08] pt-10 md:pt-12">
-              <div className="flex flex-col gap-12 lg:flex-row lg:gap-16">
-                {/* Left Column (35% width): Back button, Narrative Summary, Full Tech Stack */}
-                <div
-                  ref={drawerLeftRef}
-                  className="lg:w-[35%] lg:shrink-0"
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      playClick();
-                      closeDiscipline();
-                    }}
-                    onMouseEnter={playHoverTick}
-                    className="group mb-8 inline-flex items-center gap-2.5 border border-white/[0.08] bg-white/[0.02] px-3.5 py-2 font-mono text-xs tracking-[0.06em] text-zinc-300 transition-colors duration-200 hover:border-white/[0.24] hover:bg-white/[0.04] hover:text-white cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40"
-                  >
-                    <ArrowLeft
-                      aria-hidden="true"
-                      className="h-3.5 w-3.5 text-[#71717A] transition-transform duration-200 group-hover:-translate-x-0.5 group-hover:text-white"
-                    />
-                    <span>All Disciplines</span>
-                  </button>
-
-                  <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-[#71717A]">
-                    {activeDiscipline.index} {"//"} Discipline Brief
-                  </div>
-
-                  <h1 className="mt-3 text-2xl md:text-3xl font-medium tracking-[-0.03em] text-[#F4F4F6] leading-tight">
-                    {activeDiscipline.title}
-                  </h1>
-
-                  <p className="mt-5 text-sm md:text-[15px] leading-relaxed text-zinc-400">
-                    {activeDiscipline.summary}
+            <section className="portfolio-hero" aria-labelledby="profile-title">
+              <header className="portfolio-masthead portfolio-grid">
+                <div data-profile-block className="portfolio-location overflow-hidden">
+                  <p data-profile-mask className="portfolio-annotation">
+                    <span>Metro Manila</span>
+                    <span>UTC+08:00</span>
                   </p>
+                </div>
+                <div ref={profileDividerRef} className="portfolio-masthead-rule" aria-hidden="true" />
+              </header>
 
-                  <div className="mt-8 border-t border-white/[0.08] pt-6">
-                    <div className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[#71717A]">
-                      Core Stack
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {activeDiscipline.stack.map((tech) => (
-                        <span
-                          key={tech}
-                          className="border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 font-mono text-[11px] text-zinc-300"
-                        >
-                          {tech}
-                        </span>
-                      ))}
-                    </div>
+              <div className="portfolio-hero-body portfolio-grid">
+                <div data-profile-block className="portfolio-intro-label overflow-hidden">
+                  <p data-profile-mask className="portfolio-annotation">Computer engineering</p>
+                </div>
+
+                <h1 id="profile-title" className="portfolio-headline">
+                  <span data-profile-block className="portfolio-headline-line">
+                    <span data-profile-mask>Justin</span>
+                  </span>
+                </h1>
+
+                <div data-profile-block className="portfolio-intro-copy overflow-hidden">
+                  <div data-profile-mask>
+                    <p className="portfolio-intro-summary">
+                      I&apos;m a Computer Engineering student in Metro Manila. I build web platforms, AI tutors, and embedded systems, and work with real-time 3D.
+                    </p>
                   </div>
                 </div>
 
-                {/* Right Column (65% width): Staggered Dark Frosted-Glass Featured Builds */}
-                <div
-                  ref={drawerRightRef}
-                  className="flex-1 lg:w-[65%] space-y-6"
+                <nav data-profile-block aria-label="Portfolio" className="portfolio-actions overflow-hidden">
+                  <div data-profile-mask className="portfolio-action-list">
+                    <a
+                      href="#about"
+                      onClick={navigateProfile}
+                      onMouseEnter={playHoverTick}
+                      className="portfolio-action portfolio-action-primary"
+                    >
+                      About me
+                    </a>
+                    <a
+                      href="#work"
+                      onClick={navigateProfile}
+                      onMouseEnter={playHoverTick}
+                      className="portfolio-action"
+                    >
+                      Featured work
+                    </a>
+                  </div>
+                </nav>
+              </div>
+            </section>
+
+            <AboutSequence onNavigate={navigateProfile} />
+
+            <WorkShowcase availableMedia={availableMedia} onBrowse={() => goToDisciplines()} onSelect={playClick} />
+          </div>
+        )}
+
+        {/* STAGE 2: Full-Width 4-Discipline Index (Kept mounted during Detail for Flip) */}
+        {(view === "disciplines" || view === "detail") && (
+          <section
+            ref={disciplinesStageRef}
+            aria-label="Engineering Disciplines"
+            onMouseLeave={handleListLeave}
+            className={
+              view === "detail"
+                ? "portfolio-frame portfolio-index pointer-events-none absolute inset-x-0 top-0 opacity-0 invisible"
+                : "portfolio-frame portfolio-index relative opacity-0 invisible"
+            }
+          >
+            <div className="relative mb-6 md:mb-8 flex flex-wrap items-center justify-between gap-4 pb-4">
+              <div
+                ref={eyebrowRef}
+                className="text-3xl font-medium tracking-[-0.02em] sm:text-4xl"
+              >
+                <h1>Disciplines</h1>
+              </div>
+              <div
+                ref={metaRef}
+                className="font-mono text-xs text-zinc-400"
+              >
+                {DISCIPLINES.length} areas of work
+              </div>
+              <span
+                ref={eyebrowBorderRef}
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-px origin-left bg-white/[0.08]"
+              />
+            </div>
+
+            <div className="flex flex-col">
+              {DISCIPLINES.map((discipline) => (
+                <button
+                  key={discipline.slug}
+                  ref={(el) => {
+                    rowRefs.current[discipline.slug] = el;
+                  }}
+                  type="button"
+                  onClick={() => openDiscipline(discipline.slug)}
+                  onMouseEnter={() => handleRowEnter(discipline.slug)}
+                  onFocus={() => handleRowEnter(discipline.slug)}
+                  onBlur={handleListLeave}
+                  tabIndex={view === "detail" ? -1 : 0}
+                  className="group relative w-full py-6 md:py-8 text-left cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
                 >
-                  <div className="flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.14em] text-[#71717A]">
-                    <span>Featured Builds (02)</span>
-                    <span>Esc to return</span>
-                  </div>
+                  <div className="overflow-hidden">
+                    <div
+                      ref={(el) => {
+                        rowMaskRefs.current[discipline.slug] = el;
+                      }}
+                      className="portfolio-index-row"
+                    >
+                      <div
+                        ref={(el) => {
+                          rowHeaderRefs.current[discipline.slug] = el;
+                        }}
+                        data-flip-id={`discipline-header-${discipline.slug}`}
+                        className="portfolio-index-title"
+                      >
+                        <span className="font-mono text-xs text-zinc-400">
+                          {discipline.index}
+                        </span>
+                        <span className="portfolio-index-name">
+                          {discipline.title}
+                        </span>
+                      </div>
 
-                  {activeDiscipline.builds.map((build) => (
-                    <DisciplineCard key={build.id} build={build} />
-                  ))}
-                </div>
+                      <div
+                        ref={(el) => {
+                          rowMetaRefs.current[discipline.slug] = el;
+                        }}
+                        className="portfolio-index-meta"
+                      >
+                        <span className="text-zinc-400 group-hover:text-zinc-200">
+                          {discipline.primaryTags.join(" / ")}
+                        </span>
+                        <ArrowUpRight
+                          aria-hidden="true"
+                          className="h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[#F4F4F6]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <span
+                    ref={(el) => {
+                      rowBorderRefs.current[discipline.slug] = el;
+                    }}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-0 bottom-0 h-px origin-left bg-white/[0.08]"
+                  />
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* STAGE 3: Option 1 Shared-Element Discipline Showcase (view === "detail") */}
+        {view === "detail" && activeDiscipline && (
+          <section
+            aria-labelledby="discipline-title"
+            className="portfolio-frame portfolio-detail relative"
+          >
+            <button
+              type="button"
+              onClick={() => closeDiscipline()}
+              onMouseEnter={playHoverTick}
+              className="portfolio-detail-back inline-flex cursor-pointer items-center gap-2 font-mono text-xs text-zinc-300 hover:text-white focus-visible:outline-1 focus-visible:outline-offset-4"
+            >
+              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+              All disciplines
+            </button>
+
+            <div
+              ref={dockedHeaderRef}
+              data-flip-id={`discipline-header-${activeDiscipline.slug}`}
+              className="portfolio-detail-heading"
+            >
+              <span className="font-mono text-sm text-zinc-400">{activeDiscipline.index}</span>
+              <h1 id="discipline-title">{activeDiscipline.title}</h1>
+            </div>
+
+            <div ref={drawerRef} className="portfolio-detail-body">
+              <div ref={drawerLeftRef}>
+                <p className="max-w-[38ch] text-base leading-relaxed text-zinc-300 sm:text-lg">
+                  {activeDiscipline.summary}
+                </p>
+                <p className="mt-6 font-mono text-xs leading-relaxed text-zinc-400">
+                  {activeDiscipline.stack.join(" / ")}
+                </p>
+              </div>
+
+              <div ref={drawerRightRef} className="min-w-0">
+                {activeDiscipline.builds.map((build) => (
+                  <DisciplineCard
+                    key={build.id}
+                    build={{ ...build, media: build.media.filter((src) => availableMedia.includes(src)) }}
+                    onExpandMedia={openLightbox}
+                    onClickSound={playClick}
+                    onHoverTick={playHoverTick}
+                  />
+                ))}
               </div>
             </div>
           </section>
         )}
       </main>
 
-      {/* Subtle Fixed Bottom-Left Controls (Replay Intro + Procedural Sound Toggle) */}
-      <div
-        ref={bottomBarRef}
-        className="fixed bottom-6 left-6 md:left-12 lg:left-16 z-40 flex items-center gap-5 opacity-0"
-      >
-        <button
-          type="button"
-          onClick={handleReplayIntro}
-          onMouseEnter={playHoverTick}
-          className="inline-flex items-center gap-2 text-xs font-mono text-zinc-500 transition-colors duration-200 hover:text-zinc-200 cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40"
-        >
-          <RotateCcw aria-hidden="true" className="h-3 w-3" />
-          <span>Replay Intro</span>
-        </button>
+      {/* Full-Screen Cinema Lightbox Modal */}
+      {lightboxState && activeDiscipline && (
+        <CinemaLightbox
+          key={`${lightboxState.build.id}-${lightboxState.index}`}
+          build={lightboxState.build}
+          initialIndex={lightboxState.index}
+          disciplineIndex={activeDiscipline.index}
+          onClose={closeLightbox}
+          onClickSound={playClick}
+          onHoverTick={playHoverTick}
+        />
+      )}
 
-        <button
-          type="button"
-          onClick={toggleSound}
-          onMouseEnter={playHoverTick}
-          aria-pressed={soundEnabled}
-          className="text-xs font-mono text-zinc-500 transition-colors duration-200 hover:text-zinc-200 cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40"
-        >
-          {soundEnabled ? "[ SOUND: ON ]" : "[ SOUND: OFF ]"}
-        </button>
-      </div>
+      <footer
+        ref={bottomBarRef}
+        inert={!introSettled}
+        className="portfolio-utilities pointer-events-none relative z-40 opacity-0"
+      >
+        <div className="portfolio-utilities-inner flex flex-wrap items-center justify-between gap-4">
+          <div className="portfolio-utility-settings pointer-events-auto flex items-center gap-5">
+            <button
+              type="button"
+              onClick={handleReplayIntro}
+              onMouseEnter={playHoverTick}
+              className="inline-flex items-center gap-2 text-xs font-mono text-zinc-500 transition-colors duration-200 hover:text-zinc-200 cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+            >
+              <RotateCcw aria-hidden="true" className="h-3 w-3" />
+              <span>Replay Intro</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleSound}
+              onMouseEnter={playHoverTick}
+              aria-pressed={soundEnabled}
+              className="text-xs font-mono text-zinc-500 transition-colors duration-200 hover:text-zinc-200 cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+            >
+              {soundEnabled ? "Sound on" : "Sound off"}
+            </button>
+          </div>
+
+          <div className="portfolio-utility-socials pointer-events-auto flex items-center gap-5 font-mono text-xs text-zinc-500">
+            <a
+              href="https://github.com/ctrl-alt-Justin"
+              target="_blank"
+              rel="noopener noreferrer"
+              onMouseEnter={playHoverTick}
+              onClick={playClick}
+              className="transition-colors duration-200 hover:text-zinc-200"
+            >
+              GitHub ↗
+            </a>
+            <a
+              href="https://www.linkedin.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              onMouseEnter={playHoverTick}
+              onClick={playClick}
+              className="transition-colors duration-200 hover:text-zinc-200"
+            >
+              LinkedIn ↗
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

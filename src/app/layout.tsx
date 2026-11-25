@@ -17,9 +17,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Justin A. Labrador — Systems, Edge AI, Embedded & 3D",
+  title: "Justin A. Labrador — Full-Stack, Applied AI, Edge IoT/CAD & 3D",
   description:
-    "Interactive engineering portfolio of Justin A. Labrador spanning full-stack cloud systems, edge AI computer vision, embedded IoT hardware, and real-time 3D worlds.",
+    "Interactive engineering and 3D portfolio of Justin A. Labrador spanning commercial full-stack platforms, applied RAG AI tutoring, edge IoT/CAD hardware, and Unreal Engine 5 / Blender environments.",
 };
 
 export default function RootLayout({

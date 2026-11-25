@@ -7,6 +7,10 @@ export interface ProjectBuild {
   description: string;
   highlights: string[];
   stack: string[];
+  media: string[];
+  mediaGradient: string;
+  liveUrl?: string;
+  privateBadge?: string;
 }
 
 export interface Discipline {
@@ -16,207 +20,275 @@ export interface Discipline {
   summary: string;
   primaryTags: string[];
   stack: string[];
-  builds: [ProjectBuild, ProjectBuild];
+  previewMedia: string;
+  previewLabel: string;
+  previewGradient: string;
+  builds: ProjectBuild[];
+}
+
+export function isVideoMedia(src: string): boolean {
+  return /\.(mp4|webm|mov|ogg)$/i.test(src);
 }
 
 export const DISCIPLINES: Discipline[] = [
   {
     slug: "full-stack",
     index: "01",
-    title: "Full-Stack Systems & Cloud Architecture",
+    title: "Full-Stack Systems & Commercial Platforms",
     summary:
-      "End-to-end web platforms, multi-tenant schemas, real-time dashboards, and B2B/SaaS infrastructure.",
-    primaryTags: ["Next.js", "Supabase", "PostgreSQL", ".NET 10"],
+      "Production commercial web platforms, automated B2B quoting engines, and unified e-commerce/CRM operations.",
+    primaryTags: ["Next.js", "Supabase", "PostgreSQL"],
     stack: [
       "Next.js",
       "TypeScript",
       "React",
       "Supabase",
       "PostgreSQL",
-      ".NET 10",
       "Tailwind CSS",
     ],
+    previewMedia: "/media/quotation-1.png",
+    previewLabel: "COMMERCIAL SUITE // 01",
+    previewGradient:
+      "radial-gradient(85% 75% at 20% 20%, rgba(148, 163, 184, 0.16) 0%, rgba(24, 24, 27, 0.92) 55%, rgba(10, 10, 12, 1) 100%)",
     builds: [
       {
-        id: "acamad-platform-suite",
+        id: "b2b-quotation-generator",
         buildLabel: "BUILD 01",
-        title: "Acamad Platform Suite",
-        category: "Multi-App B2B Ecosystem",
-        roleTags: ["System Architect", "Full-Stack"],
+        title: "B2B Quotation Generator",
+        category: "Commercial Quoting Engine",
+        roleTags: ["Full-Stack", "Product Systems"],
         description:
-          "Multi-application ecosystem including a B2B Quotation Generator, CRM, Back Office, and E-Commerce storefront.",
+          "Dynamic commercial quoting platform featuring real-time pricing calculators, tier/volume discount rules, live split-screen document preview, and built-in digital signature input.",
         highlights: [
-          "Unified multi-tenant PostgreSQL schema with row-level access policies across four interconnected operational portals.",
-          "Dynamic B2B quotation engine supporting tiered pricing matrices, PDF generation, and pipeline-to-order conversion.",
-          "Shared .NET 10 and Supabase service layer synchronizing storefront inventory with back-office fulfillment and CRM telemetry.",
+          "Real-time reactive pricing engine evaluating tier and volume discount rules, tax breakdowns, and unit margins instantaneously.",
+          "Live split-screen document preview syncing structured line-item edits directly into print-faithful commercial quotation layouts.",
+          "Built-in digital signature capture and persistent approval records built with Next.js, TypeScript, and Supabase.",
         ],
-        stack: ["Next.js", "TypeScript", "Supabase", "PostgreSQL", ".NET 10"],
+        stack: [
+          "Next.js",
+          "TypeScript",
+          "React",
+          "Supabase",
+          "PostgreSQL",
+          "Tailwind CSS",
+        ],
+        liveUrl: "https://lgzquotations.vercel.app/",
+        media: ["/media/quotation-1.png", "/media/quotation-2.png"],
+        mediaGradient:
+          "radial-gradient(75% 80% at 78% 18%, rgba(228, 228, 231, 0.14) 0%, rgba(24, 24, 27, 0.92) 52%, rgba(9, 9, 11, 1) 100%)",
       },
       {
-        id: "risse-ai-learning",
+        id: "commercial-ecommerce-crm",
         buildLabel: "BUILD 02",
-        title: "Risse AI Learning Platform",
-        category: "EdTech & AI Tutoring",
+        title: "Commercial E-Commerce & Unified CRM Platform",
+        category: "Storefront & Unified CRM",
+        roleTags: ["System Architect", "E-Commerce"],
+        description:
+          "End-to-end storefront (ETJO Aigi Trading) integrated directly with customer relationship management, inventory tracking, and order workflows.",
+        highlights: [
+          "Full-stack ETJO Aigi Trading storefront with dynamic catalog filtering, cart persistence, and validated checkout flows.",
+          "Unified CRM pipeline linking customer accounts, sales touchpoints, and repeat order history in PostgreSQL.",
+          "Real-time inventory synchronization and fulfillment state transitions driving commercial operations from a single schema.",
+        ],
+        stack: [
+          "Next.js",
+          "TypeScript",
+          "React",
+          "Supabase",
+          "PostgreSQL",
+          "Tailwind CSS",
+        ],
+        liveUrl: "https://etjoaigitrading.vercel.app/shop",
+        media: [
+          "/featured/E-Commerce 1.png",
+          "/featured/E-Commerce2.png",
+          "/featured/BackOffice.png",
+          "/media/ecommerce-crm-1.png",
+          "/media/ecommerce-crm-2.png",
+        ],
+        mediaGradient:
+          "radial-gradient(80% 70% at 18% 82%, rgba(161, 161, 170, 0.14) 0%, rgba(20, 20, 24, 0.94) 56%, rgba(9, 9, 11, 1) 100%)",
+      },
+    ],
+  },
+  {
+    slug: "applied-ai",
+    index: "02",
+    title: "Applied AI & RAG Tutoring Systems",
+    summary:
+      "Retrieval-augmented pedagogical AI and interactive learning architectures designed to build real mastery.",
+    primaryTags: ["RAG Pipeline", "Gemini API", "Vector Search"],
+    stack: [
+      "RAG Pipeline",
+      "Gemini API",
+      "Next.js",
+      "Supabase",
+      "Vector Search",
+      "TypeScript",
+    ],
+    previewMedia: "/media/risse-1.png",
+    previewLabel: "RISSE AI // 02",
+    previewGradient:
+      "radial-gradient(85% 75% at 75% 25%, rgba(129, 140, 248, 0.16) 0%, rgba(20, 20, 26, 0.92) 55%, rgba(10, 10, 12, 1) 100%)",
+    builds: [
+      {
+        id: "risse-ai-lms-socratic-rag",
+        buildLabel: "BUILD 01",
+        title: "Risse — AI LMS & Socratic RAG Tutor",
+        category: "Gamified LMS & Pedagogical RAG",
         roleTags: ["Lead Engineer", "AI Systems"],
         description:
-          "Gamified robotics curriculum featuring star-chart skill trees and dual Socratic/Competition Gemini AI tutoring modes.",
+          "Private AI-integrated Learning Management System featuring star-chart skill trees and a custom Retrieval-Augmented Generation (RAG) Socratic tutor that guides learners step-by-step through questioning rather than handing out direct answers.",
         highlights: [
-          "Interactive constellation skill-tree graph tracking mastery prerequisites, XP progression, and hardware lab milestones.",
-          "Dual-persona Gemini AI tutor switching seamlessly between guided Socratic questioning and time-boxed competition coaching.",
-          "Real-time student telemetry and cohort dashboards engineered with React, Next.js App Router, and Supabase Realtime.",
+          "Interactive star-chart skill trees visualizing curriculum prerequisites, mastery progression, and student telemetry inside a full Next.js & Supabase LMS.",
+          "Curriculum-grounded vector search retrieving verified lesson context into the Gemini API pipeline so explanations stay faithful to course material.",
+          "Socratic reasoning layer engineered to diagnose learner misconceptions and respond with progressive hints and targeted questions instead of direct answers.",
         ],
-        stack: ["Next.js", "React", "TypeScript", "Supabase", "Tailwind CSS"],
+        stack: [
+          "RAG Pipeline",
+          "Gemini API",
+          "Next.js",
+          "Supabase",
+          "Vector Search",
+          "TypeScript",
+        ],
+        privateBadge: "Private System — Media Preview",
+        media: ["/featured/RisseAILMS.png", "/media/risse-1.png", "/media/risse-2.png"],
+        mediaGradient:
+          "radial-gradient(80% 75% at 30% 25%, rgba(129, 140, 248, 0.16) 0%, rgba(18, 18, 24, 0.93) 56%, rgba(9, 9, 11, 1) 100%)",
       },
     ],
   },
   {
-    slug: "edge-ai",
-    index: "02",
-    title: "Edge AI & Computer Vision Pipelines",
-    summary:
-      "Low-latency audio/visual inference, multilingual NLP classification, and real-time behavioral threat detection.",
-    primaryTags: ["YOLOv8/11", "Faster-Whisper", "TagalogBERT", "FastAPI"],
-    stack: [
-      "YOLOv8/11",
-      "ByteTrack",
-      "OpenCV",
-      "Faster-Whisper (CUDA)",
-      "TagalogBERT",
-      "FastAPI",
-    ],
-    builds: [
-      {
-        id: "securelink-threat-engine",
-        buildLabel: "BUILD 01",
-        title: "SecureLink Threat Detection Engine",
-        category: "Multimodal Edge Inference",
-        roleTags: ["ML Engineer", "Backend"],
-        description:
-          "Real-time Tagalog/Taglish ASR + NLP sequence classification pipeline with automated danger-event snapshot capture.",
-        highlights: [
-          "CUDA-accelerated Faster-Whisper streaming transcription tuned for low-latency code-switched Tagalog and English speech.",
-          "Fine-tuned TagalogBERT distress classifier evaluating sliding conversational windows to flag escalations under tight latency budgets.",
-          "FastAPI event orchestrator triggering automated frame capture, incident metadata indexing, and instant responder alerts.",
-        ],
-        stack: ["Faster-Whisper (CUDA)", "TagalogBERT", "FastAPI", "OpenCV"],
-      },
-      {
-        id: "pose-object-threat-recognizer",
-        buildLabel: "BUILD 02",
-        title: "Pose & Object Threat Recognizer",
-        category: "Behavioral Computer Vision",
-        roleTags: ["CV Engineer", "Pipeline Lead"],
-        description:
-          "Temporal behavior verification combining YOLO Pose keypoints and weapon detection with hardware serial triggers.",
-        highlights: [
-          "Dual-model YOLOv8/11 inference fusing skeletal keypoint kinematics with high-recall weapon bounding-box detection.",
-          "ByteTrack multi-object persistence filtering transient false positives across consecutive temporal verification frames.",
-          "Deterministic serial hardware bridge dispatching sub-second alert signals directly to external microcontrollers and relays.",
-        ],
-        stack: ["YOLOv8/11", "ByteTrack", "OpenCV", "FastAPI"],
-      },
-    ],
-  },
-  {
-    slug: "embedded-iot",
+    slug: "edge-iot",
     index: "03",
-    title: "Embedded IoT & Hardware Prototyping",
+    title: "Edge IoT, CAD & Hardware Prototyping",
     summary:
-      "Power-constrained microcontroller firmware, custom PCB fabrication, and precision 3D-printed mechanical enclosures.",
-    primaryTags: ["ESP32-S3", "FreeRTOS", "Fusion 360", "VEX V5"],
+      "Power-constrained embedded wearables, parametric 3D CAD engineering, custom enclosures, and competition robotics drivetrains.",
+    primaryTags: ["ESP32-S3", "Fusion 360", "Flutter"],
     stack: [
-      "ESP32-S3",
+      "ESP32-S3 Sense",
       "FreeRTOS",
-      "C/C++",
       "Fusion 360",
-      "Proteus",
+      "OnShape",
+      "SolidWorks",
+      "CAD",
+      "Flutter",
+      "FastAPI",
       "Bambu Lab P1S",
       "VEX V5",
     ],
+    previewMedia: "/media/securelink-pin.png",
+    previewLabel: "HARDWARE & CAD // 03",
+    previewGradient:
+      "radial-gradient(85% 75% at 22% 75%, rgba(245, 158, 11, 0.13) 0%, rgba(22, 20, 20, 0.93) 56%, rgba(10, 10, 12, 1) 100%)",
     builds: [
       {
-        id: "securelink-wearable-pin",
+        id: "securelink-wearable-flutter-suite",
         buildLabel: "BUILD 01",
-        title: "SecureLink Wearable Safety Pin",
-        category: "Wearable Edge Hardware",
-        roleTags: ["Firmware", "CAD & Enclosure"],
+        title: "SecureLink Wearable Pin & Flutter Monitoring Suite",
+        category: "Wearable IoT & Command Dashboard",
+        roleTags: ["Firmware & CAD", "Flutter Systems"],
         description:
-          "Underclocked 80MHz XIAO ESP32-S3 Sense hardware with I2S PDM audio, OV2640 camera, SpeexDSP VAD, BLE bridging, and a modular friction-fit Fusion 360 enclosure.",
+          "Underclocked XIAO ESP32-S3 Sense wearable safety pin (I2S PDM audio, OV2640 camera, BLE bridging, and friction-fit Fusion 360 CAD enclosure) paired with a cross-platform Flutter desktop and mobile monitoring dashboard.",
         highlights: [
-          "FreeRTOS task scheduling on an 80MHz-underclocked ESP32-S3 Sense balancing battery longevity against continuous audio capture.",
-          "On-device SpeexDSP voice-activity detection gating I2S PDM audio streams and OV2640 burst frames over BLE bridging.",
-          "Tool-less friction-fit wearable housing modeled in Fusion 360 and iterated with tight tolerances on a Bambu Lab P1S.",
+          "FreeRTOS firmware on an underclocked XIAO ESP32-S3 Sense managing I2S PDM audio, on-demand OV2640 frame capture, and low-overhead BLE bridging.",
+          "Modular friction-fit wearable shell modeled in Fusion 360 and tolerance-tuned on a Bambu Lab P1S for clean acoustic intake and discreet mounting.",
+          "Cross-platform Flutter desktop and mobile dashboard streaming live FastAPI WebSocket threat alerts, device telemetry, and danger-event snapshots.",
         ],
         stack: [
-          "ESP32-S3",
+          "ESP32-S3 Sense",
           "FreeRTOS",
-          "C/C++",
           "Fusion 360",
+          "Flutter",
+          "FastAPI",
           "Bambu Lab P1S",
         ],
+        media: ["/media/securelink-pin.png", "/media/securelink-dashboard.png"],
+        mediaGradient:
+          "radial-gradient(75% 75% at 72% 24%, rgba(245, 158, 11, 0.13) 0%, rgba(22, 20, 20, 0.94) 55%, rgba(9, 9, 11, 1) 100%)",
       },
       {
-        id: "vex-u-drivetrain",
+        id: "vex-u-drivetrain-cad-assemblies",
         buildLabel: "BUILD 02",
-        title: "VEX U Competition Drivetrain",
-        category: "Competitive Robotics",
-        roleTags: ["Mechanical", "Control Systems"],
+        title: "VEX U Competition Drivetrain & Custom CAD Assemblies",
+        category: "Parametric CAD & Robotics",
+        roleTags: ["Mechanical CAD", "Drivetrain"],
         description:
-          "Custom 8-motor chassis architecture, parametric 3D-printed gearing, and center-of-gravity optimization for national robotics competition.",
+          "Parametric 3D CAD chassis modeling, custom 8-motor drivetrain architecture, and 3D-printed gearing engineered for university robotics competition.",
         highlights: [
-          "Balanced 8-motor drive distribution engineered for rapid acceleration, defensive traction, and sustained thermal headroom.",
-          "Parametric custom gearing and lightweight structural gussets validated in CAD and fabricated for match durability.",
-          "Mass-distribution tuning lowering center of gravity across chassis rails to stabilize high-speed autonomous turns.",
+          "Full parametric 3D CAD assembly workflows across Fusion 360, OnShape, and SolidWorks balancing structural rigidity with rapid iteration.",
+          "Custom 8-motor VEX V5 drivetrain architecture optimized for high-torque acceleration, traction, and center-of-gravity stability.",
+          "Custom 3D-printed gearing and bearing-retained plates fabricated on Bambu Lab P1S to withstand competitive match loads.",
         ],
-        stack: ["VEX V5", "C/C++", "Fusion 360", "Bambu Lab P1S", "Proteus"],
+        stack: [
+          "Fusion 360",
+          "OnShape",
+          "SolidWorks",
+          "CAD",
+          "Bambu Lab P1S",
+          "VEX V5",
+        ],
+        media: ["/featured/Drivetrain.png", "/media/drivetrain-cad-1.png", "/media/drivetrain-build-2.png"],
+        mediaGradient:
+          "radial-gradient(80% 70% at 24% 25%, rgba(251, 191, 36, 0.11) 0%, rgba(20, 20, 22, 0.94) 56%, rgba(9, 9, 11, 1) 100%)",
       },
     ],
   },
   {
-    slug: "realtime-3d",
+    slug: "3d-motion",
     index: "04",
-    title: "Real-Time 3D & Interactive Worlds",
+    title: "3D Environments & Commercial Motion",
     summary:
-      "First-person combat mechanics, custom game engine tooling, and server-side gameplay architecture.",
-    primaryTags: ["Unreal Engine 5.7", "C++", "Minecraft Fabric", "Java"],
+      "Photorealistic commercial product animation, stylized isometric architecture, and real-time 3D environments.",
+    primaryTags: ["Unreal Engine 5", "Blender", "Cycles"],
     stack: [
-      "Unreal Engine 5.7",
-      "C++",
-      "Blueprints",
-      "Java",
-      "Minecraft Fabric",
-      "Skript",
+      "Unreal Engine 5",
+      "Blender",
+      "Cycles/Eevee",
+      "CAD-to-3D Pipeline",
+      "Lighting & Shading",
     ],
+    previewMedia: "/media/ue5-environment-1.png",
+    previewLabel: "3D & MOTION // 04",
+    previewGradient:
+      "radial-gradient(85% 75% at 50% 15%, rgba(244, 244, 246, 0.15) 0%, rgba(20, 20, 24, 0.92) 52%, rgba(9, 9, 11, 1) 100%)",
     builds: [
       {
-        id: "ue5-arena-wave-survival",
+        id: "ue5-realtime-game-environment",
         buildLabel: "BUILD 01",
-        title: "UE5 Arena Wave Survival Prototype",
-        category: "Real-Time Combat Systems",
-        roleTags: ["Gameplay Programmer", "UE5 C++"],
+        title: "Real-Time Game Environment (Unreal Engine 5)",
+        category: "Real-Time Level Design",
+        roleTags: ["Environment Artist", "UE5 Lighting"],
         description:
-          "First-person combat system featuring bone-socket weapon hit traces and dynamic procedural mesh slicing.",
+          "Atmospheric 3D level design, modular environment assembly, custom lighting, and real-time post-processing built in Unreal Engine 5.",
         highlights: [
-          "Frame-accurate C++ bone-socket swept hit traces delivering responsive melee impact detection and hitstop feedback.",
-          "Dynamic procedural mesh slicing bisecting enemy geometry along live blade-plane vectors on lethal strikes.",
-          "Modular Blueprint and C++ wave director managing enemy spawn pacing, navmesh pathing, and combat state transitions.",
+          "Modular architectural environment assembly built for cohesive spatial flow, sightlines, and real-time frame-rate budgets.",
+          "Atmospheric lighting rigs, volumetric fog, and custom material shading tuned for mood and silhouette readability.",
+          "Real-time post-processing color grading and exposure pipelines delivering cinema-grade framing in Unreal Engine 5.",
         ],
-        stack: ["Unreal Engine 5.7", "C++", "Blueprints"],
+        stack: ["Unreal Engine 5", "CAD-to-3D Pipeline", "Lighting & Shading"],
+        media: ["/media/ue5-environment-1.png"],
+        mediaGradient:
+          "radial-gradient(75% 75% at 75% 20%, rgba(244, 244, 246, 0.14) 0%, rgba(18, 18, 22, 0.93) 54%, rgba(9, 9, 11, 1) 100%)",
       },
       {
-        id: "cozymounts-rpg-systems",
+        id: "blender-stylized-isometric-room",
         buildLabel: "BUILD 02",
-        title: "CozyMounts & Custom RPG Systems",
-        category: "Modding & Server Architecture",
-        roleTags: ["Mod Author", "Server Architect"],
+        title: "Stylized Isometric Room (Blender)",
+        category: "Isometric Lookdev & Cycles",
+        roleTags: ["3D Modeler", "Cycles Lookdev"],
         description:
-          "Fabric 26.2 mod engineering and custom server architecture with multi-wave arenas and custom item models.",
+          "Detailed isometric interior diorama featuring custom 3D modeling, procedural materials, warm volumetric lighting, and Cycles rendering in Blender.",
         highlights: [
-          "Custom Java Fabric 26.2 entities, rideable mount physics, and synchronized client-server animation states.",
-          "Multi-wave arena encounters orchestrated via event-driven Skript pipelines with progressive boss mechanics.",
-          "Custom resource-pack item model pipelines seamlessly bound to server-side RPG progression and loot tables.",
+          "Custom hard-surface and prop modeling arranged inside a clean, readable isometric architectural diorama.",
+          "Procedural surface shaders balancing subtle roughness variation, wood/fabric micro-texture, and emissive accents.",
+          "Warm volumetric lighting and soft bounce illumination path-traced in Blender Cycles for editorial depth.",
         ],
-        stack: ["Java", "Minecraft Fabric", "Skript"],
+        stack: ["Blender", "Cycles/Eevee", "Lighting & Shading"],
+        media: ["/media/blender-isometric-room.png"],
+        mediaGradient:
+          "radial-gradient(80% 75% at 25% 75%, rgba(212, 212, 216, 0.13) 0%, rgba(18, 18, 22, 0.94) 55%, rgba(9, 9, 11, 1) 100%)",
       },
     ],
   },
